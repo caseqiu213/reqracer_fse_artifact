@@ -1,0 +1,2 @@
+SELECT x.instanceid, x.id, x.contextlevel, x.path, x.depth FROM mdl_course_modules cm JOIN mdl_context x ON x.instanceid=cm.id WHERE cm.course='2' AND x.contextlevel=70 UNION ALL SELECT x.instanceid, x.id, x.contextlevel, x.path, x.depth FROM mdl_context x WHERE x.instanceid='2' AND x.contextlevel=50
+UPDATE mdl_user SET lastip = '0:0:0:0:0:0:0:1',lastaccess = '1589744117' WHERE id='3'

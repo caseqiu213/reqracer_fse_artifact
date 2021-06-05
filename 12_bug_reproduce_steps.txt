@@ -1,0 +1,127 @@
+## Bug Manual Reproducing Steps
+- WP-11073
+  - Add sleep(60); before $result = $wpdb->update($wpdb->comments, in function wp_trash_post_comments in file wp-includes/post.php.
+  - Access the homepage and click Site Admin.
+  - On wp-admin page, click 'Posts' -> 'Add New'.
+  - Enter title and content of a post, and click 'Publish'.
+  - After the publish finishes, click 'Visit site'.
+  - Click the newly-added post, enter a comment and click 'Submit Comment'.
+  - Go to wp-admin/edit.php, click 'Edit'.
+  - Hover the mouse to the newly-added post and click 'Trash', this will hit the sleep.
+  - In a new browser, access the post page and add a new comment.
+  - After post-trashing finishes, click 'Trash' to see trashed posts.
+  - Hover the mouse to the trashed post and click 'Restore'.
+  - Access the post page, and the new comment does not show on the page.
+
+- WP-11437
+  - Add sleep(60); before $wpdb->insert($wpdb->options, in function add_option in file wp-includes/functions.php.
+  - On wp-admin page, click 'Posts' -> 'Add New'.
+  - Enter title and content of a post, and click 'Publish'.
+  - After the publish finishes, click 'Visit site'.
+  - A duplicate entry error is returned on that page.
+
+- WP-24933
+  - Add ($meta_key == '_wp_attached_file'){sleep(60);} before wpdb->update in function update_metadata in file wp-includes/meta.php.
+  - Go to admin page, Click Add New under Media.
+  - Click Choose File and select a image to upload.
+  - Click Upload to upload the image.
+  - Hover the mouse to the image and click Edit.
+  - Click Edit Image then on the new page click Scale Image. The sleep is hit.
+  - Open a new tab and go to Media in admin page.
+  - On the new tab, hover the mouse to the image and click Delete permanently.
+  - Go back to the first tab, after the sleep, the preview thumbnail is missing.
+
+- MW-40594
+  - Add sleep(60); before $dbw->insert( in function forItemInternal in file extensions/Translate/utils/MessageGroupStats.php.
+  - In 2 browsers, do the following steps.
+  - Click Special Pages, and scroll down find Data and tools.
+  - Click Language statistics.
+  - A duplicate entry error is returned on that page.
+
+- MW-69815
+  - Add sleep(60); before $dbw->insert( 'globalblocks', $row, METHOD ); in function insertBlock in file extensions/GlobalBlocking/GlobalBlocking.class.php).
+  - In 2 browsers, do the following steps.
+  - Log in the account.
+  - Click Special pages.
+  - Find Globally block an IP address and click.
+  - Redirect to index.php/Special:GlobalBlock.
+  - Enter the info and click Block this IP address globally.
+  - On another browser, repeat the 2 steps above.
+  - A duplicate entry error is returned on that page.
+
+- MDL-28949
+  - Config:
+  - On side bar under 'Settings' -> 'Site administration' -> 'Users' -> 'Accounts' -> 'Add a new user'.
+  - Enter info to create a student account.
+  - Click 'Settings' -> 'Advanced features', check 'Enable completion tracking' and click 'Save changes' button.
+  - Click 'Home' and enter info to create a new course.
+  - If a course is created, click 'Settings' -> 'Course administration' -> 'Edit settings'.
+  - In 'Student progress', enable 'Completion tracking', and click 'Save changes' button.
+  - Click 'Settings' -> 'Course administration' -> 'Completion tracking'.
+  - In 'Manual self completion' check 'Enable'.
+  - In 'Manual competion by' check all boxes, and click 'Save changes' button.
+  - If a course is created, click 'Navigation' -> 'Courses' -> 'Name' -> 'Participants'.
+  - Click the icon next to 'All participants', click 'Enrol users' button.
+  - Click the 'Enroll' button next to the created student account and the admin account, and click 'Finish enrolling users' button.
+  - Click 'Settings' -> 'Course administration' -> 'Users' -> 'Enrolled users'.
+  - Assign the admin user as 'Teacher' and 'Non-editing teacher.
+  - Verify: you should be able to see 'Course completion' under 'Navigation' -> 'Courses' -> 'Name' -> 'Reports'
+  - Verify: you should be able to see a box under 'Non-editing teacher' after clicking 'Course completion'
+  - Steps:
+  - Add sleep(60); before $this->inser() function _save in file lib/completion/completion_completion.php.
+  - Log in the student account and mark the assignment as completed.
+  - In a terminal, run command $PHP_ROOT/bin/php $APACHE_ROOT/htdoc/28949/admin/cli/cron.php.
+  - Log in the admin account and in 'Course completion' page, click the check box.
+  - There is an erroor message shown on the page saying that "Found more than one record"
+
+- MDL-43421
+  - Config:
+  - On side bar under 'Settings' -> 'Site administration' -> 'Users' -> 'Accounts' -> 'Add a new user'.
+  - Enter info to create a student account.
+  - Click 'Home' and enter info to create a new course.
+  - If a course is created, click 'Navigation' -> 'Courses' -> 'Name' -> 'Participants'.
+  - Click the icon next to 'All participants', click 'Enrol users' button.
+  - Click the 'Enroll' button next to the created student account.
+  - In phpmyadmin page, check mdl_user_last_accesses does not have a record.
+  - Steps:
+  - add sleep(60); before insert_record_raw in function user_accesstime_log in file lib/datalib.php.
+  - In two browsers login the student account.
+  - In two browsers, click the course and a duplicate entry error is shown in one browser.
+
+- MDL-51707
+  - Config:
+  - Click 'ADMINISTRATION' -> 'Site administration' -> 'Server' -> 'Scheduled tasks'.
+  - Click the gear icon under 'Edit' and disable all tasks.
+  - Only 'enable mod_forum\task\cron_task' and '\core\task\blog_cron_task'.
+  - Steps:
+  - Add sleep(60); after $records = $DB->get_records_select() in function get_next_scheduled_task in lib/classes/task/manager.php. 
+  - In the same function, add an error_log line before return $task to indicate a task is scheduled.
+  - In the terminal run command $PHP_ROOT/bin/php $APACHE_ROOT/htdocs/51707/admin/cli/cron.php.
+  - In the browser, go to 'Scheduled tasks', click the gear icon for 'mod_forum\task\cron_taks' and disable it.
+  - The task is still scheduled.
+
+- MDL-59854
+  - Config:
+  - On side bar under 'Site administration' -> 'Users' -> 'Accounts' -> 'Add a new user'.
+  - Enter info to create a student account.
+  - Click 'Site home' and enter info to create a new course.
+  - If a course is created, click 'Name' -> 'Participants'.
+  - Click the gear icon, and click 'Enrolled users'.
+  - Enrol the created student account to the course.
+  - Click 'Name', click the gear icon on the page, and click 'Turn editing on'.
+  - Click 'Add an activity or resource', choose 'Forum', click 'Add' button and enter info.
+  - Steps:
+  - Add sleep(60); before insert->record in function subscribe_user in file mod/forum/classes/subscriptions.php.
+  - In 2 browsers, do the following steps.
+  - Click the forum, then the gear icon on the page.
+  - Click 'Show/edit current subscribers' and then 'Turn editing on' button.
+  - Select the student account and click 'Add'.
+  - In phpmyadmin page, in table mdl_forum_subscriptions, the user is subscribed twice for the same forum, which should not be allowed.
+
+- DPL-1484216
+  - Config:
+  - Change the file mode to 444 to resolve the error when clicking Configuration on the top bar.
+  - Steps:
+  - Add sleep(60); before db_insert('cache_update') in function _update_create_fetch_task in file /modules/update/update.fetch.inc.
+  - In 2 browsers, log in and click 'Modules' on the top bar.
+  - A duplicate entry error is returned on the page. 

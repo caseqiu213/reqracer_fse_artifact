@@ -1,0 +1,982 @@
+diff -Naurb mysql-5.6.44/cmd-line-utils/libedit/terminal.c mysql-5.6.44-modified/cmd-line-utils/libedit/terminal.c
+--- mysql-5.6.44/cmd-line-utils/libedit/terminal.c	2019-03-15 03:38:15.000000000 -0400
++++ mysql-5.6.44-modified/cmd-line-utils/libedit/terminal.c	2021-06-03 15:01:55.720810337 -0400
+@@ -866,7 +866,7 @@
+ terminal_set(EditLine *el, const char *term)
+ {
+ 	int i;
+-	char buf[TC_BUFSIZE];
++	// char buf[TC_BUFSIZE];
+ 	char *area;
+ 	const struct termcapstr *t;
+ 	sigset_t oset, nset;
+@@ -876,7 +876,7 @@
+ 	(void) sigaddset(&nset, SIGWINCH);
+ 	(void) sigprocmask(SIG_BLOCK, &nset, &oset);
+ 
+-	area = buf;
++	area = NULL;
+ 
+ 
+ 	if (term == NULL)
+diff -Naurb mysql-5.6.44/sql/mysqld.cc mysql-5.6.44-modified/sql/mysqld.cc
+--- mysql-5.6.44/sql/mysqld.cc	2019-03-15 03:38:15.000000000 -0400
++++ mysql-5.6.44-modified/sql/mysqld.cc	2021-06-03 15:01:55.724810413 -0400
+@@ -13,7 +13,6 @@
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, write to the Free Software
+    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+-
+ #include "my_global.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
+ 
+ #include <vector>
+@@ -79,6 +78,21 @@
+ #include "mysqld.h"
+ #include "my_default.h"
+ 
++
++/*
+++++++++++++++++ ZY code here +++++++++++++++
++a global map containing request_id -> query_id
++*/
++#include <map>
++#include <iterator>
++#include <string>
++#include <iostream>
++
++std::map <std::string, int> zy_map;
++/*
+++++++++++++++++ ZY code end +++++++++++++++
++*/
++
+ #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
+ #include "../storage/perfschema/pfs_server.h"
+ #else
+diff -Naurb mysql-5.6.44/sql/mysqld.h mysql-5.6.44-modified/sql/mysqld.h
+--- mysql-5.6.44/sql/mysqld.h	2019-03-15 03:38:15.000000000 -0400
++++ mysql-5.6.44-modified/sql/mysqld.h	2021-06-03 15:01:55.724810413 -0400
+@@ -24,6 +24,7 @@
+ #include "mysql/psi/mysql_file.h"          /* MYSQL_FILE */
+ #include "sql_list.h"                      /* I_List */
+ #include "sql_cmd.h"                       /* SQLCOM_END */
++#include <vector>
+ 
+ class THD;
+ struct handlerton;
+@@ -88,6 +89,17 @@
+ extern MYSQL_PLUGIN_IMPORT CHARSET_INFO *national_charset_info;
+ extern MYSQL_PLUGIN_IMPORT CHARSET_INFO *table_alias_charset;
+ 
++
++/*****
++ZY code added here
++declare glboal variables
++*****/
++#include <map>
++#include <iterator>
++#include <string>
++#include <iostream>
++extern std::map <std::string, int> zy_map;
++
+ /**
+   Character set of the buildin error messages loaded from errmsg.sys.
+ */
+diff -Naurb mysql-5.6.44/sql/sql_class.h mysql-5.6.44-modified/sql/sql_class.h
+--- mysql-5.6.44/sql/sql_class.h	2019-03-15 03:38:15.000000000 -0400
++++ mysql-5.6.44-modified/sql/sql_class.h	2021-06-03 15:01:55.724810413 -0400
+@@ -2929,6 +2929,9 @@
+   uint	     server_status,open_options;
+   enum enum_thread_type system_thread;
+   uint       select_number;             //number of select (used for EXPLAIN)
++
++  // ZY code here
++  int zy_loop;
+   /*
+     Current or next transaction isolation level.
+     When a connection is established, the value is taken from
+diff -Naurb mysql-5.6.44/sql/sql_connect.cc mysql-5.6.44-modified/sql/sql_connect.cc
+--- mysql-5.6.44/sql/sql_connect.cc	2019-03-15 03:38:15.000000000 -0400
++++ mysql-5.6.44-modified/sql/sql_connect.cc	2021-06-03 15:01:55.724810413 -0400
+@@ -37,6 +37,9 @@
+ 
+ #include <algorithm>
+ 
++// ZY code here
++#include <fstream> 
++
+ using std::min;
+ using std::max;
+ 
+@@ -929,6 +932,8 @@
+ {
+   THD *thd= thd_arg;
+ 
++  std::ofstream ofs;
++
+   thd->thr_create_utime= my_micro_time();
+ 
+   if (MYSQL_CALLBACK_ELSE(thread_scheduler, init_new_connection_thread, (), 0))
+diff -Naurb mysql-5.6.44/sql/sql_parse.cc mysql-5.6.44-modified/sql/sql_parse.cc
+--- mysql-5.6.44/sql/sql_parse.cc	2019-03-15 03:38:15.000000000 -0400
++++ mysql-5.6.44-modified/sql/sql_parse.cc	2021-06-03 15:13:39.810521217 -0400
+@@ -110,6 +110,25 @@
+ using std::max;
+ using std::min;
+ 
++
++/*****
++ZY code here
++include library and declare namespace
++*****/
++#define DEBUG 1
++#include <iostream>
++#include <fstream>
++#include <pthread.h>
++#include <string>
++#include <sstream>
++#include <unistd.h>
++#include <fcntl.h>
++#include <stdio.h>
++/*****
++ZY code ends here
++*****/
++
++
+ #define FLAGSTR(V,F) ((V)&(F)?#F" ":"")
+ 
+ /**
+@@ -1164,6 +1183,635 @@
+     1   request of thread shutdown, i. e. if command is
+         COM_QUIT/COM_SHUTDOWN
+ */
++
++/*****
++ZY code here
++some helper functions to read/write file, debug useage function and some variables
++*****/
++#include <map>
++#include <iterator>
++#include <iostream>
++#include <iostream>
++#include <fstream>
++#include <pthread.h>
++#include <string>
++#include <sstream>
++#include <unistd.h>
++#include <fcntl.h>
++#include <stdio.h>
++#include <vector>
++#include <time.h>
++#include <unistd.h>
++#include <mutex>
++std::mutex request_dict_mutex;
++int flag = 0;
++void zy_debug(std::string info) {
++  std::ofstream myfile;
++  myfile.open("/tmp/reqracer/php_log/mysql_files/testing.txt", std::ios_base::app);
++  myfile << "[master debug] zy_debug " << info << " \n";
++  myfile.close();
++}
++
++std::string zy_file_path = "/tmp/reqracer/php_log/mysql_files/";
++struct flock lock_req1_loop;
++struct flock lock_req1_start;
++struct flock lock_req2_loop;
++struct flock lock_req2_start;
++struct flock lock_request_dict;
++struct flock lock_stop_loop;
++struct flock lock_start_replay;
++
++std::vector <int> myIntArray (10, 0);
++std::vector <std::string> myStrArray (1024, "DEFAULT");
++std::vector <std::string> myQueryArray(10, "DEFAULT");
++
++int request1_id;
++int request2_id;
++int query1_id;
++int query2_id;
++int request3_id;
++int request4_id;
++int query3_id;
++int query4_id;
++int request5_id;
++int request6_id;
++int query5_id;
++int query6_id;
++
++int sequence;
++
++int zy_wait_flag = 0;
++
++int current_request_id;
++int current_query_id;
++int previous_request_id;
++int next_request_id;
++
++int zy_stop_loop=0;
++
++int zy_index = 0;
++
++int zy_max_index = 0;
++
++int zy_sleep_1 = 1;
++
++int i = 0;
++
++// initialize file locks
++// memset(&lock_req1_loop, 0, sizeof(lock_req1_loop));
++// memset(&lock_req1_start, 0, sizeof(lock_req1_start));
++// memset(&lock_req2_loop, 0, sizeof(lock_req2_loop));
++// memset(&lock_req2_start, 0, sizeof(lock_req2_start));
++// memset(&lock_request_dict, 0, sizeof(lock_request_dict));
++// // memset (&lock_current_request_id, 0, sizeof(lock_current_request_id));
++// memset(&lock_stop_loop, 0, sizeof(lock_stop_loop));
++// memset (&lock_pcr_status, 0, sizeof(lock_pcr_status));
++
++// read/write request_dict file
++int zy_read_request_dict(){
++  std::string filename = "zy_request_dict.txt";
++  FILE * request_dict_file = fopen((zy_file_path + filename).c_str(), "r");
++  int fd_request_dict = fileno(request_dict_file);
++  lock_request_dict.l_type = F_WRLCK;
++  fcntl(fd_request_dict, F_SETLKW, &lock_request_dict);
++  int i = -2;
++  fseek(request_dict_file, 0, SEEK_SET);
++  char ch;
++  if(fscanf(request_dict_file,"%c",&ch)==EOF){
++    i = 0;
++  }
++  lock_request_dict.l_type = F_UNLCK;
++  fcntl(fd_request_dict, F_SETLKW, &lock_request_dict);
++  fclose(request_dict_file);
++  return i;
++}
++
++void zy_write_request_dict(){
++  std::string filename = "zy_request_dict.txt";
++  FILE * request_dict_file = fopen((zy_file_path + filename).c_str(), "w");
++  int fd_request_dict = fileno(request_dict_file);
++  lock_request_dict.l_type = F_WRLCK;
++  fcntl(fd_request_dict, F_SETLKW, &lock_request_dict);
++
++  std::ofstream myfile(zy_file_path + "zy_request_dict.txt");
++  const std::lock_guard<std::mutex> lock(request_dict_mutex);
++  unsigned i = 0;
++  while(i < myStrArray.size()){
++    myfile << myStrArray[i] << std::endl;
++    i++;
++  }
++  // myfile.close();
++
++  lock_request_dict.l_type = F_UNLCK;
++  fcntl(fd_request_dict, F_SETLKW, &lock_request_dict);
++  fclose(request_dict_file);
++}
++
++// read/write stop_loop file
++int zy_read_stop_loop(){
++  std::string filename = "zy_stop_loop.txt";
++  FILE * stop_loop_file = fopen((zy_file_path + filename).c_str(), "r");
++  int fd_stop_loop = fileno(stop_loop_file);
++  int stop_loop;
++  char input[100];
++  std::string line;
++  lock_stop_loop.l_type = F_RDLCK;
++  fcntl(fd_stop_loop, F_SETLKW, &lock_stop_loop);
++  if(fgets(input, 100, stop_loop_file) == NULL){
++    stop_loop = 0;
++  }
++  else{
++    line = input;
++    stop_loop = std::stoi(line);
++  }
++  lock_stop_loop.l_type = F_UNLCK;
++  fcntl(fd_stop_loop, F_SETLKW, &lock_stop_loop);
++  fclose(stop_loop_file);
++  return stop_loop;
++}
++
++void zy_write_stop_loop(int stop_loop){
++  std::string filename = "zy_stop_loop.txt";
++  FILE * stop_loop_file = fopen((zy_file_path + filename).c_str(), "w");
++  int fd_stop_loop = fileno(stop_loop_file);
++  lock_stop_loop.l_type = F_WRLCK;
++  fcntl(fd_stop_loop, F_SETLKW, &lock_stop_loop);
++  std::string s = std::to_string(stop_loop);
++  char const *pchar = s.c_str();
++  fputs(pchar, stop_loop_file);
++  lock_stop_loop.l_type = F_UNLCK;
++  fcntl(fd_stop_loop, F_SETLKW, &lock_stop_loop);
++  fclose(stop_loop_file);
++}
++
++// read/write request1_loop file
++int zy_read_req1_loop(){
++  std::string filename = "zy_req1_loop.txt";
++  FILE * file = fopen((zy_file_path + filename).c_str(), "r");
++  int fd = fileno(file);
++  int temp;
++  char input[100];
++  std::string line;
++  lock_req1_loop.l_type = F_RDLCK;
++  fcntl(fd, F_SETLKW, &lock_req1_loop);
++  if(fgets(input, 100, file) == NULL){
++    temp = 0;
++  }
++  else{
++    line = input;
++    temp = std::stoi(line);
++  }
++  lock_req1_loop.l_type = F_UNLCK;
++  fcntl(fd, F_SETLKW, &lock_req1_loop);
++  fclose(file);
++  return temp;
++}
++
++void zy_write_req1_loop(int input){
++  std::string filename = "zy_req1_loop.txt";
++  FILE * file = fopen((zy_file_path + filename).c_str(), "w");
++  int fd = fileno(file);
++  lock_req1_loop.l_type = F_WRLCK;
++  fcntl(fd, F_SETLKW, &lock_req1_loop);
++  std::string s = std::to_string(input);
++  char const *pchar = s.c_str();
++  fputs(pchar, file);
++  lock_req1_loop.l_type = F_UNLCK;
++  fcntl(fd, F_SETLKW, &lock_req1_loop);
++  fclose(file);
++}
++
++// read/write request1_start file
++int zy_read_req1_start(){
++  std::string filename = "zy_req1_start.txt";
++  FILE * file = fopen((zy_file_path + filename).c_str(), "r");
++  int fd = fileno(file);
++  int temp;
++  char input[100];
++  std::string line;
++  lock_req1_start.l_type = F_RDLCK;
++  fcntl(fd, F_SETLKW, &lock_req1_start);
++  if(fgets(input, 100, file) == NULL){
++    temp = 0;
++  }
++  else{
++    line = input;
++    temp = std::stoi(line);
++  }
++  lock_req1_loop.l_type = F_UNLCK;
++  fcntl(fd, F_SETLKW, &lock_req1_start);
++  fclose(file);
++  return temp;
++}
++
++void zy_write_req1_start(int input){
++  std::string filename = "zy_req1_start.txt";
++  FILE * file = fopen((zy_file_path + filename).c_str(), "w");
++  int fd = fileno(file);
++  lock_req1_loop.l_type = F_WRLCK;
++  fcntl(fd, F_SETLKW, &lock_req1_start);
++  std::string s = std::to_string(input);
++  char const *pchar = s.c_str();
++  fputs(pchar, file);
++  lock_req1_loop.l_type = F_UNLCK;
++  fcntl(fd, F_SETLKW, &lock_req1_start);
++  fclose(file);
++}
++
++// read/write request2_loop file
++int zy_read_req2_loop(){
++  std::string filename = "zy_req2_loop.txt";
++  FILE * file = fopen((zy_file_path + filename).c_str(), "r");
++  int fd = fileno(file);
++  int temp;
++  char input[100];
++  std::string line;
++  lock_req2_loop.l_type = F_RDLCK;
++  fcntl(fd, F_SETLKW, &lock_req2_loop);
++  if(fgets(input, 100, file) == NULL){
++    temp = 0;
++  }
++  else{
++    line = input;
++    temp = std::stoi(line);
++  }
++  lock_req2_loop.l_type = F_UNLCK;
++  fcntl(fd, F_SETLKW, &lock_req2_loop);
++  fclose(file);
++  return temp;
++}
++
++void zy_write_req2_loop(int input){
++  std::string filename = "zy_req2_loop.txt";
++  FILE * file = fopen((zy_file_path + filename).c_str(), "w");
++  int fd = fileno(file);
++  lock_req2_loop.l_type = F_WRLCK;
++  fcntl(fd, F_SETLKW, &lock_req2_loop);
++  std::string s = std::to_string(input);
++  char const *pchar = s.c_str();
++  fputs(pchar, file);
++  lock_req2_loop.l_type = F_UNLCK;
++  fcntl(fd, F_SETLKW, &lock_req2_loop);
++  fclose(file);
++}
++
++// read/write request2_start file
++int zy_read_req2_start(){
++  std::string filename = "zy_req2_start.txt";
++  FILE * file = fopen((zy_file_path + filename).c_str(), "r");
++  int fd = fileno(file);
++  int temp;
++  char input[100];
++  std::string line;
++  lock_req2_start.l_type = F_RDLCK;
++  fcntl(fd, F_SETLKW, &lock_req2_start);
++  if(fgets(input, 100, file) == NULL){
++    temp = 0;
++  }
++  else{
++    line = input;
++    temp = std::stoi(line);
++  }
++  lock_req2_start.l_type = F_UNLCK;
++  fcntl(fd, F_SETLKW, &lock_req2_start);
++  fclose(file);
++  return temp;
++}
++
++void zy_write_req2_start(int input){
++  std::string filename = "zy_req2_start.txt";
++  FILE * file = fopen((zy_file_path + filename).c_str(), "w");
++  int fd = fileno(file);
++  lock_req2_start.l_type = F_WRLCK;
++  fcntl(fd, F_SETLKW, &lock_req2_start);
++  std::string s = std::to_string(input);
++  char const *pchar = s.c_str();
++  fputs(pchar, file);
++  lock_req2_start.l_type = F_UNLCK;
++  fcntl(fd, F_SETLKW, &lock_req2_start);
++  fclose(file);
++}
++
++// read/write flag file
++int zy_read_flag(){
++  std::string filename = "flag.txt";
++  FILE * file = fopen((zy_file_path + filename).c_str(), "r");
++  int fd = fileno(file);
++  int temp;
++  char input[100];
++  std::string line;
++  lock_req2_start.l_type = F_RDLCK;
++  fcntl(fd, F_SETLKW, &lock_req2_start);
++  if(fgets(input, 100, file) == NULL){
++    temp = 0;
++  }
++  else{
++    line = input;
++    temp = std::stoi(line);
++  }
++  lock_req2_start.l_type = F_UNLCK;
++  fcntl(fd, F_SETLKW, &lock_req2_start);
++  fclose(file);
++  return temp;
++}
++
++void zy_write_flag(int input){
++  std::string filename = "flag.txt";
++  FILE * file = fopen((zy_file_path + filename).c_str(), "w");
++  int fd = fileno(file);
++  lock_req2_start.l_type = F_WRLCK;
++  fcntl(fd, F_SETLKW, &lock_req2_start);
++  std::string s = std::to_string(input);
++  char const *pchar = s.c_str();
++  fputs(pchar, file);
++  lock_req2_start.l_type = F_UNLCK;
++  fcntl(fd, F_SETLKW, &lock_req2_start);
++  fclose(file);
++}
++
++void zy_write_start_second_replay(int input){
++  std::string filename = "zy_start_second_replay.txt";
++  FILE * file = fopen((zy_file_path + filename).c_str(), "w");
++  int fd = fileno(file);
++  lock_start_replay.l_type = F_WRLCK;
++  fcntl(fd, F_SETLKW, &lock_req1_start);
++  std::string s = std::to_string(input);
++  char const *pchar = s.c_str();
++  fputs(pchar, file);
++  lock_start_replay.l_type = F_UNLCK;
++  fcntl(fd, F_SETLKW, &lock_req1_start);
++  fclose(file);
++}
++
++// check if current query is the one matches one in the pattern
++int zy_check_query(std::string current, std::string query){
++  // #if DEBUG
++  //   std::ofstream myfile2;
++  //   std::string filename = "testing.txt";
++  //   myfile2.open((zy_file_path + filename).c_str(), std::ios_base::app);
++  //   myfile2 << "[master zy_check_query current] " << current << "\n";
++  //   myfile2 << "[master zy_check_query pattern] " << query << "\n";
++  //   myfile2.close();
++  // #endif
++  if (current.compare(query) == 0){
++    #if DEBUG
++      std::ofstream myfile2;
++      std::string filename = "testing.txt";
++      myfile2.open((zy_file_path + filename).c_str(), std::ios_base::app);
++      myfile2 << "[master zy_check_query] " << "identical" << "\n";
++      myfile2.close();
++    #endif
++    return 1;
++  }
++  // If query is an INSERT, compare if query is a substring of current
++  std::size_t f_insert_1 = current.find("INSERT");
++  std::size_t f_insert_2 = current.find("INSERT");
++  if (f_insert_1!=std::string::npos && f_insert_2!=std::string::npos){
++    if(current.find(query) != std::string::npos){
++      #if DEBUG
++        std::ofstream myfile2;
++        std::string filename = "testing.txt";
++        myfile2.open((zy_file_path + filename).c_str(), std::ios_base::app);
++        myfile2 << "[master zy_check_query] " << "INSERT same" << "\n";
++        myfile2.close();
++      #endif
++      return 1;
++    }
++  }
++
++  // If query is an UPDATE with VALUE, compare substring
++  // If query is an UPDATE no VALUE, compare whole
++  std::size_t f_update_1 = current.find("UPDATE");
++  std::size_t f_update_2 = current.find("UPDATE");
++  std::size_t f_value_1 = current.find("VALUE");
++  std::size_t f_value_2 = current.find("VALUE");
++  if (f_update_1!=std::string::npos && f_update_2!=std::string::npos && f_value_1!=std::string::npos && f_value_2!=std::string::npos ){
++    if(current.find(query) != std::string::npos){
++      #if DEBUG
++        std::ofstream myfile2;
++        std::string filename = "testing.txt";
++        myfile2.open((zy_file_path + filename).c_str(), std::ios_base::app);
++        myfile2 << "[master zy_check_query] " << "UPDATE same" << "\n";
++        myfile2.close();
++      #endif
++      return 1;
++    }
++  }
++  return 0;
++}
++
++// read the racing query pattern file
++int zy_read_race_queries() {
++  std::string filename = "zy_race_queries.txt";
++  std::ifstream in((zy_file_path + filename).c_str());
++  std::string str;
++  int i = 0;
++  while (std::getline(in, str)){
++    // #if DEBUG
++    //   std::ofstream myfile2;
++    //   std::string filename = "testing.txt";
++    //   myfile2.open((zy_file_path + filename).c_str(), std::ios_base::app);
++    //   myfile2 << "[master zy_read_race_queries] " << str << "\n";
++    //   myfile2.close();
++    // #endif
++    if(str.size() > 0){
++      myQueryArray[i] = str;
++    }
++    i++;
++  }
++  in.close();
++  return 1;
++}
++
++// string operation functions
++std::string zy_query_prepare(std::string query){
++  // this function is used to remove extra spaces and special characters
++  // which are also removed during interleaving finding phase
++  // because we do string match, we need this step
++  std::string output;
++
++  // remove `
++  while(query.find("`") != std::string::npos){
++    size_t pos = query.find("`");
++    query.erase(pos, 1);
++  }
++
++  // remove '
++  while(query.find("'") != std::string::npos){
++    size_t pos = query.find("'");
++    query.erase(pos, 1);
++  }
++
++  // remove extra spaces
++  unique_copy(query.begin(), query.end(), std::back_insert_iterator<std::string>(output),
++                                        [](char a, char b){return isspace(a) && isspace(b);});
++  return output;
++}
++
++std::string zy_extract_query(std::string query){
++  query = zy_query_prepare(query);
++  std::string zy_query;
++  std::size_t start = query.find("/*");
++  // need to add this if check, otherwise, query from command line might not work
++  if(start != std::string::npos) {
++    std::size_t end = query.find(" */");
++    zy_query = query.substr(0, start) + query.substr(end+3);
++    // then erase the request id block so it can be used to match pcr
++    // query.erase(query.begin() + start, query.begin() + end + 3);
++  }
++  // #if DEBUG
++  //   std::ofstream myfile2;
++  //   std::string filename = "testing.txt";
++  //   myfile2.open((zy_file_path + filename).c_str(), std::ios_base::app);
++  //   myfile2 << "[master zy_extract_query] " << zy_query << "\n";
++  //   myfile2.close();
++  // #endif
++  return zy_query;
++}
++
++std::string zy_extract_request_id(std::string query){
++  query = zy_query_prepare(query);
++  std::string zy_request_id;
++  std::size_t start = query.find("/*");
++  // need to add this if check, otherwise, query from command line might not work
++  if(start != std::string::npos) {
++    std::size_t end = query.find(" */");
++    zy_request_id = query.substr(start + 3, end - start - 3);
++    // then erase the request id block so it can be used to match pcr
++    // query.erase(query.begin() + start, query.begin() + end + 3);
++  }
++// #if DEBUG
++//   std::ofstream myfile2;
++//   myfile2.open("/tmp/reqracer/php_log/mysql_files/testing.txt", std::ios_base::app);
++//   myfile2 << "[master zy_extract_request_id] " << zy_request_id << "\n";
++//   myfile2.close();
++// #endif
++  return zy_request_id;
++}
++
++void zy_update_request_dict(std::string zy_request_id){
++  std::string filename = "zy_request_dict.txt";
++  FILE * request_dict_file = fopen((zy_file_path + filename).c_str(), "w");
++  int fd_request_dict = fileno(request_dict_file);
++  lock_request_dict.l_type = F_WRLCK;
++  fcntl(fd_request_dict, F_SETLKW, &lock_request_dict);
++
++  for(unsigned i = 0; i < myStrArray.size(); ++i){
++    if(myStrArray[i] == zy_request_id){
++      int id = std::stoi(myStrArray[i+1]);
++      id++;
++      myStrArray[i+1] = std::to_string(id);
++    }
++  }
++
++  std::ofstream myfile((zy_file_path + filename).c_str());
++  const std::lock_guard<std::mutex> lock(request_dict_mutex);
++  unsigned i = 0;
++  while(i < myStrArray.size()){
++    myfile << myStrArray[i] << std::endl;
++    // #if DEBUG
++    // std::ofstream myfile2;
++    // myfile2.open("/tmp/reqracer/php_log/mysql_files/testing.txt", std::ios_base::app);
++    // if(myStrArray[i] != "DEFAULT"){
++    //   myfile2 << "[master zy_update_request_dict] " << myStrArray[i] << "\n";
++    // }
++    // myfile2.close();
++    // #endif
++    i++;
++  }
++  // myfile.close();
++  lock_request_dict.l_type = F_UNLCK;
++  fcntl(fd_request_dict, F_SETLKW, &lock_request_dict);
++  fclose(request_dict_file);
++}
++
++int zy_get_request_index(std::string zy_request_id){
++  int ret = -2;
++  for(unsigned i = 0; i < myStrArray.size(); ++i){
++    if(myStrArray[i] == zy_request_id){
++      ret = i/2 + 1;
++    }
++  }
++  // #if DEBUG
++  //   std::ofstream myfile2;
++  //   myfile2.open("/tmp/reqracer/php_log/mysql_files/testing.txt", std::ios_base::app);
++  //   myfile2 << "[master zy_get_request_index] " << ret << "\n";
++  //   myfile2.close();
++  // #endif
++  return ret;
++}
++
++// int zy_get_query_index(std::string zy_request_id){
++//   int ret = -2;
++//   for(unsigned i = 0; i < myStrArray.size(); ++i){
++//     if(myStrArray[i] == zy_request_id){
++//       ret = std::stoi(myStrArray[i+1]);
++//     }
++//   }
++//   // #if DEBUG
++//   //   std::ofstream myfile2;
++//   //   myfile2.open("/tmp/reqracer/php_log/mysql_files/testing.txt", std::ios_base::app);
++//   //   myfile2 << "[master zy_get_query_index] " << ret << "\n";
++//   //   myfile2.close();
++//   // #endif
++//   return ret;
++// }
++
++void zy_init_myStrArray(){
++  myStrArray = {"DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT", \
++                "DEFAULT", "DEFAULT","DEFAULT", "DEFAULT","DEFAULT"};
++  return;
++}
++
++/*****
++ZY code ends here
++*****/
++
+ bool dispatch_command(enum enum_server_command command, THD *thd,
+ 		      char* packet, uint packet_length)
+ {
+@@ -1388,6 +2036,184 @@
+ 
+     DBUG_PRINT("query",("%-.4096s",thd->query()));
+ 
++
++    /*****
++    ZY code
++    control logic starts
++    *****/
++    zy_read_race_queries();
++    thd->zy_loop = 0;
++    int req1 = stoi(myQueryArray[0]);
++    int req2 = stoi(myQueryArray[2]);
++    std::string q11 = zy_query_prepare(myQueryArray[1]);
++    std::string q12 = zy_query_prepare(myQueryArray[5]);
++    std::string q21 = zy_query_prepare(myQueryArray[3]);
++    // zy_debug(q11);
++    // zy_debug(q12);
++    // zy_debug(q21);
++
++    std::string unique_request_id = zy_extract_request_id(thd->query());
++    std::string current_query = zy_extract_query(thd->query());
++
++    #if DEBUG
++    std::ofstream myfile2;
++    myfile2.open("/tmp/reqracer/php_log/mysql_files/testing.txt", std::ios_base::app);
++    myfile2 << "[master query string] " << current_query << "\n";
++    myfile2.close();
++    #endif
++
++    if(!unique_request_id.empty()){
++      /*
++      update the request dict
++      */
++      flag = zy_read_flag();
++      if(zy_read_request_dict() == 0 && flag == 0){
++        flag = 1;
++        zy_write_flag(1);
++        // the request dict file is empty, we update the local one first, then write back to file
++        // also reset myStrArray to default
++        zy_init_myStrArray();
++        myStrArray[0] = unique_request_id;
++        myStrArray[1] = "1";
++        zy_write_request_dict();
++
++        // #if DEBUG
++        // std::ofstream myfile2;
++        // myfile2.open("/tmp/reqracer/php_log/mysql_files/testing.txt", std::ios_base::app);
++        // myfile2 << "[master control logics] empty request dict file" << "\n";
++        // myfile2.close();
++        // #endif
++      }
++      else{
++        if(std::find(myStrArray.begin(), myStrArray.end(), unique_request_id) != myStrArray.end()){
++          // the request id already in the array
++          zy_update_request_dict(unique_request_id);
++        }
++        else{
++          // request id not in the array, need to add to it
++          for(unsigned i = 0; i < myStrArray.size(); ++i){
++            if(myStrArray[i] == "DEFAULT"){
++              myStrArray[i] = unique_request_id;
++              myStrArray[i+1] = "1";
++              break;
++            }
++          }
++          zy_write_request_dict();
++        }
++      }
++
++      zy_write_req1_loop(0);
++      zy_write_req2_loop(0);
++      zy_write_req1_start(0);
++      zy_write_req2_start(0);
++      int current_request_idx = zy_get_request_index(unique_request_id);
++
++      // q11
++      // if (current_request_id == req1 && current_query_id == query11){
++      if (current_request_idx == req1 && zy_check_query(current_query, q11)){
++        zy_write_req1_loop(1);
++        // write file to notice starting the second replay instance
++        zy_write_start_second_replay(1);
++
++        #if DEBUG
++        std::ofstream myfile2;
++        myfile2.open("/tmp/reqracer/php_log/mysql_files/testing.txt", std::ios_base::app);
++        myfile2 << "[master control logics] req1 halting" << "\n";
++        myfile2.close();
++        #endif
++        // put q11 to sleep
++        thd->zy_loop = 1;
++      }
++      // q21
++      // if (current_request_id == req2 && current_query_id == query21){
++      if (current_request_idx == req2 + req1 && zy_check_query(current_query, q21)){
++        // wake up q11
++        zy_write_req1_start(1);
++        zy_write_req2_loop(1);
++        // zy_write_stop_loop(1);
++        // put q21 to sleep
++        thd->zy_loop = 1;
++
++        #if DEBUG
++          std::ofstream myfile2;
++          std::string filename = "testing.txt";
++          myfile2.open((zy_file_path + filename).c_str(), std::ios_base::app);
++          myfile2 << "[master zy_check_query current] " << current_query << "\n";
++          myfile2 << "[master zy_check_query pattern] " << q21 << "\n";
++          myfile2.close();
++        #endif
++
++      }
++      // q12
++      // if (current_request_id == req1 && current_query_id == query12){
++      if (current_request_idx == req1 && zy_check_query(current_query, q12)){
++        // wake up q21
++        zy_write_req2_start(1);
++        zy_write_req1_loop(1);
++        // zy_write_stop_loop(1);
++        // put q12 to sleep
++        thd->zy_loop = 1;
++
++        #if DEBUG
++          std::ofstream myfile2;
++          std::string filename = "testing.txt";
++          myfile2.open((zy_file_path + filename).c_str(), std::ios_base::app);
++          myfile2 << "[master zy_check_query current] " << current_query << "\n";
++          myfile2 << "[master zy_check_query pattern] " << q12 << "\n";
++          myfile2.close();
++        #endif
++      }
++
++      time_t endwait;
++      time_t start = time(NULL);
++      time_t seconds = 10; // end the loop after X seconds elapsed
++      endwait = start + seconds;
++      zy_stop_loop = zy_read_stop_loop();
++      while(thd->zy_loop == 1 && start < endwait) {
++        sleep(1);
++        start = time(NULL);
++        #if DEBUG
++          std::ofstream myfile2;
++          myfile2.open("/tmp/reqracer/php_log/mysql_files/testing.txt", std::ios_base::app);
++          myfile2 << "[master control logics] sleeping" << thd->thread_id << "\n";
++          myfile2.close();
++        #endif
++        // zy_stop_loop = zy_read_stop_loop();
++        if(zy_read_req1_loop() == 1 && zy_read_req1_start() == 1) {
++          #if DEBUG
++          std::ofstream myfile2;
++          myfile2.open("/tmp/reqracer/php_log/mysql_files/testing.txt", std::ios_base::app);
++          myfile2 << "[master control logics] req1 break loop" << thd->thread_id <<"\n";
++          myfile2.close();
++          #endif
++          thd->zy_loop = 0;
++          zy_write_req1_loop(0);
++          break;
++        }
++        if(zy_read_req2_loop() == 1 && zy_read_req1_start() == 1) {
++          #if DEBUG
++          std::ofstream myfile2;
++          myfile2.open("/tmp/reqracer/php_log/mysql_files/testing.txt", std::ios_base::app);
++          myfile2 << "[master control logics] req2 break loop" << thd->thread_id << "\n";
++          myfile2.close();
++          #endif
++          thd->zy_loop = 0;
++          zy_write_req2_loop(0);
++          break;
++        }
++      }
++      #if DEBUG
++      std::ofstream myfile2;
++      myfile2.open("/tmp/reqracer/php_log/mysql_files/testing.txt", std::ios_base::app);
++      myfile2 << "[master control logics] loop ends or breaks" << thd->thread_id << "\n";
++      myfile2.close();
++      #endif
++    }
++    /*****
++    ZY code ends here
++    *****/
++
++
+ #if defined(ENABLED_PROFILING)
+     thd->profiling.set_query_source(thd->query(), thd->query_length());
+ #endif
+@@ -1477,6 +2303,13 @@
+       mysql_parse(thd, beginning_of_next_stmt, length, &parser_state);
+     }
+ 
++
++    // ZY code here
++    // std::string s = "p comes c comes r comes";
++    // if(zy_check_pcr_stat(s)) {
++    //   zy_write_stop_loop(2);
++    // }
++
+     DBUG_PRINT("info",("query ready"));
+     break;
+   }

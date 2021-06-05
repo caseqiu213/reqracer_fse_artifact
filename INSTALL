@@ -1,0 +1,12 @@
+All softwares need by ReqRacer can be installed and configued by running build.sh script.
+
+To test if Apache is installed correctly, you can access the browser and enter a url of localhost. You should see 'It works!' printed in the browser.
+
+To test if PHP is installed correctly, create a test.php file.
+$ cd ./build/apache/htdocs/
+$ touch test.php
+$ echo "<?php phpinfo(); ?>" > test.php 
+Then you can access the browser and enter a url of localhost/test.php. You should see php info printed in the browser.
+
+To test if MySQL is installed correctly, you can log in mysql, which is located at /usr/local/mysql using MySQL credentials. The user name is 'root' and password is 'reqracer-mysql', which are set in the beginning of build.sh. The command to log in mysql would be:
+$ /usr/local/mysql/bin/mysql -u root -p.

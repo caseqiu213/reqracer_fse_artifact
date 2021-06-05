@@ -1,0 +1,349 @@
+In the end of config.php, log the received token.
+$_racetrkrnonce = @$_REQUEST['_racetrkrnonce'];
+
+if (is_array($_racetrkrnonce )){
+    $_racetrkrnonce = $_racetrkrnonce[0];
+}
+
+$zy_log_file = fopen("/tmp/reqracer/php_log/moodle.log", "a");
+flock($zy_log_file, LOCK_EX);
+$zy_log_mesg1 = "PID: " . getmypid() . ". ";
+$zy_log_mesg1 .= "URL: " . $_SERVER['REQUEST_URI'] . ". ";
+$zy_log_mesg1 .= "RequestID: " . $_SERVER['UNIQUE_ID'] . ". ";
+$zy_log_mesg1 .= "Action: . ";
+$zy_log_mesg1 .= "Referer: " . $_SERVER['HTTP_REFERER'] . ". ";
+$zy_log_mesg1 .= "Received Token: " . $_REQUEST['_racetrkrnonce'] . ". ";
+$zy_log_mesg1 .= "\r\n";
+fwrite($zy_log_file, $zy_log_mesg1);
+fflush($zy_log_file);
+flock($zy_log_file, LOCK_UN);
+fclose($zy_log_file);
+
+In lib/formslib.php, modify the function to log form-generated token.
+function moodleform($action=null, $customdata=null, $method='post', $target='', $attributes=null, $editable=true) {
+    global $CFG;
+    if (empty($CFG->xmlstrictheaders)) {
+        // no standard mform in moodle should allow autocomplete with the exception of user signup
+        // this is valid attribute in html5, sorry, we have to ignore validation errors in legacy xhtml 1.0
+        if (empty($attributes)) {
+            $attributes = array('autocomplete'=>'off');
+        } else if (is_array($attributes)) {
+            $attributes['autocomplete'] = 'off';
+        } else {
+            if (strpos($attributes, 'autocomplete') === false) {
+                $attributes .= ' autocomplete="off" ';
+            }
+        }
+    }
+
+    if (empty($action)){
+        $action = strip_querystring(qualified_me());
+    }
+
+    $this->_formname = get_class($this); // '_form' suffix kept in order to prevent collisions of form id and other element
+    $this->_customdata = $customdata;
+    $this->_form = new MoodleQuickForm($this->_formname, $method, $action, $target, $attributes);
+    if (!$editable){
+        $this->_form->hardFreeze();
+    }
+
+    $this->definition();
+
+    $this->_form->addElement('hidden', 'sesskey', null); // automatic sesskey protection
+    $this->_form->setType('sesskey', PARAM_RAW);
+    $this->_form->setDefault('sesskey', sesskey());
+
+    $race_trkr_nonce = $_REQUEST['_racetrkrnonce'];
+    if (!$race_trkr_nonce){
+        $race_trkr_nonce = random_string(10);
+        $_REQUEST['_racetrkrnonce'] = $race_trkr_nonce;
+        $zy_log_file = fopen("/tmp/reqracer/php_log/moodle.log", "a");
+        $zy_log_mesg4 = "PID: " . getmypid() . ". ";
+        $zy_log_mesg4 .= "URL: " . $_SERVER['REQUEST_URI'] . ". ";
+        $zy_log_mesg4 .= "RequestID: " . $_SERVER['UNIQUE_ID'] . ". ";
+        $zy_log_mesg4 .= "Action: . ";
+        $zy_log_mesg4 .= "Generated Token: " . $_REQUEST['_racetrkrnonce'] . ". \r\n";
+        flock($zy_log_file, LOCK_EX);
+        fwrite($zy_log_file, $zy_log_mesg4);
+        fflush($zy_log_file);
+        flock($zy_log_file, LOCK_UN);
+        fclose($zy_log_file);
+    }
+
+    $this->_form->addElement('hidden', '_racetrkrnonce', $_REQUEST['_racetrkrnonce']);        
+    $this->_form->addElement('hidden', '_qf__'.$this->_formname, null);   // form submission marker
+    $this->_form->setType('_qf__'.$this->_formname, PARAM_RAW);
+    $this->_form->setDefault('_qf__'.$this->_formname, 1);
+    $this->_form->_setDefaultRuleMessages();
+
+    // we have to know all input types before processing submission ;-)
+    $this->_process_submission($method);
+}
+
+In lib/weblib.php, modify the function to log redirect token.
+function redirect($url, $message='', $delay=-1) {
+    global $OUTPUT, $PAGE, $SESSION, $CFG;
+
+    if (CLI_SCRIPT or AJAX_SCRIPT) {
+        // this is wrong - developers should not use redirect in these scripts,
+        // but it should not be very likely
+        throw new moodle_exception('redirecterrordetected', 'error');
+    }
+
+    // prevent debug errors - make sure context is properly initialised
+    if ($PAGE) {
+        $PAGE->set_context(null);
+    }
+
+    if ($url instanceof moodle_url) {
+        $url = $url->out(false);
+    }
+
+    if (!empty($CFG->usesid) && !isset($_COOKIE[session_name()])) {
+       $url = $SESSION->sid_process_url($url);
+    }
+
+    $debugdisableredirect = false;
+    do {
+        if (defined('DEBUGGING_PRINTED')) {
+            // some debugging already printed, no need to look more
+            $debugdisableredirect = true;
+            break;
+        }
+
+        if (empty($CFG->debugdisplay) or empty($CFG->debug)) {
+            // no errors should be displayed
+            break;
+        }
+
+        if (!function_exists('error_get_last') or !$lasterror = error_get_last()) {
+            break;
+        }
+
+        if (!($lasterror['type'] & $CFG->debug)) {
+            //last error not interesting
+            break;
+        }
+
+        // watch out here, @hidden() errors are returned from error_get_last() too
+        if (headers_sent()) {
+            //we already started printing something - that means errors likely printed
+            $debugdisableredirect = true;
+            break;
+        }
+
+        if (ob_get_level() and ob_get_contents()) {
+            // there is something waiting to be printed, hopefully it is the errors,
+            // but it might be some error hidden by @ too - such as the timezone mess from setup.php
+            $debugdisableredirect = true;
+            break;
+        }
+    } while (false);
+
+    // Technically, HTTP/1.1 requires Location: header to contain the absolute path.
+    // (In practice browsers accept relative paths - but still, might as well do it properly.)
+    // This code turns relative into absolute.
+    if (!preg_match('|^[a-z]+:|', $url)) {
+        // Get host name http://www.wherever.com
+        $hostpart = preg_replace('|^(.*?[^:/])/.*$|', '$1', $CFG->wwwroot);
+        if (preg_match('|^/|', $url)) {
+            // URLs beginning with / are relative to web server root so we just add them in
+            $url = $hostpart.$url;
+        } else {
+            // URLs not beginning with / are relative to path of current script, so add that on.
+            $url = $hostpart.preg_replace('|\?.*$|','',me()).'/../'.$url;
+        }
+        // Replace all ..s
+        while (true) {
+            $newurl = preg_replace('|/(?!\.\.)[^/]*/\.\./|', '/', $url);
+            if ($newurl == $url) {
+                break;
+            }
+            $url = $newurl;
+        }
+    }
+
+    // Sanitise url - we can not rely on moodle_url or our URL cleaning
+    // because they do not support all valid external URLs
+    $url = preg_replace('/[\x00-\x1F\x7F]/', '', $url);
+    $url = str_replace('"', '%22', $url);
+    $encodedurl = preg_replace("/\&(?![a-zA-Z0-9#]{1,8};)/", "&amp;", $url);
+    $encodedurl = preg_replace('/^.*href="([^"]*)".*$/', "\\1", clean_text('<a href="'.$encodedurl.'" />', FORMAT_HTML));
+    $url = str_replace('&amp;', '&', $encodedurl);
+    
+    // start of zy work
+    if (!function_exists('http_build_url'))
+    {
+        define('HTTP_URL_REPLACE', 1);              // Replace every part of the first URL when there's one of the second URL
+        define('HTTP_URL_JOIN_PATH', 2);            // Join relative paths
+        define('HTTP_URL_JOIN_QUERY', 4);           // Join query strings
+        define('HTTP_URL_STRIP_USER', 8);           // Strip any user authentication information
+        define('HTTP_URL_STRIP_PASS', 16);          // Strip any password authentication information
+        define('HTTP_URL_STRIP_AUTH', 32);          // Strip any authentication information
+        define('HTTP_URL_STRIP_PORT', 64);          // Strip explicit port numbers
+        define('HTTP_URL_STRIP_PATH', 128);         // Strip complete path
+        define('HTTP_URL_STRIP_QUERY', 256);        // Strip query string
+        define('HTTP_URL_STRIP_FRAGMENT', 512);     // Strip any fragments (#identifier)
+        define('HTTP_URL_STRIP_ALL', 1024);         // Strip anything but scheme and host
+
+        // Build an URL
+        // The parts of the second URL will be merged into the first according to the flags argument. 
+        // 
+        // @param   mixed           (Part(s) of) an URL in form of a string or associative array like parse_url() returns
+        // @param   mixed           Same as the first argument
+        // @param   int             A bitmask of binary or'ed HTTP_URL constants (Optional)HTTP_URL_REPLACE is the default
+        // @param   array           If set, it will be filled with the parts of the composed url like parse_url() would return 
+        function http_build_url($url, $parts=array(), $flags=HTTP_URL_REPLACE, &$new_url=false)
+        {
+            $keys = array('user','pass','port','path','query','fragment');
+
+            // HTTP_URL_STRIP_ALL becomes all the HTTP_URL_STRIP_Xs
+            if ($flags & HTTP_URL_STRIP_ALL)
+            {
+                $flags |= HTTP_URL_STRIP_USER;
+                $flags |= HTTP_URL_STRIP_PASS;
+                $flags |= HTTP_URL_STRIP_PORT;
+                $flags |= HTTP_URL_STRIP_PATH;
+                $flags |= HTTP_URL_STRIP_QUERY;
+                $flags |= HTTP_URL_STRIP_FRAGMENT;
+            }
+            // HTTP_URL_STRIP_AUTH becomes HTTP_URL_STRIP_USER and HTTP_URL_STRIP_PASS
+            else if ($flags & HTTP_URL_STRIP_AUTH)
+            {
+                $flags |= HTTP_URL_STRIP_USER;
+                $flags |= HTTP_URL_STRIP_PASS;
+            }
+
+            // Parse the original URL
+            // - Suggestion by Sayed Ahad Abbas
+            //   In case you send a parse_url array as input
+            $parse_url = !is_array($url) ? parse_url($url) : $url;
+
+            // Scheme and Host are always replaced
+            if (isset($parts['scheme']))
+                $parse_url['scheme'] = $parts['scheme'];
+            if (isset($parts['host']))
+                $parse_url['host'] = $parts['host'];
+
+            // (If applicable) Replace the original URL with it's new parts
+            if ($flags & HTTP_URL_REPLACE)
+            {
+                foreach ($keys as $key)
+                {
+                    if (isset($parts[$key]))
+                        $parse_url[$key] = $parts[$key];
+                }
+            }
+            else
+            {
+                // Join the original URL path with the new path
+                if (isset($parts['path']) && ($flags & HTTP_URL_JOIN_PATH))
+                {
+                    if (isset($parse_url['path']))
+                        $parse_url['path'] = rtrim(str_replace(basename($parse_url['path']), '', $parse_url['path']), '/') . '/' . ltrim($parts['path'], '/');
+                    else
+                        $parse_url['path'] = $parts['path'];
+                }
+
+                // Join the original query string with the new query string
+                if (isset($parts['query']) && ($flags & HTTP_URL_JOIN_QUERY))
+                {
+                    if (isset($parse_url['query']))
+                        $parse_url['query'] .= '&' . $parts['query'];
+                    else
+                        $parse_url['query'] = $parts['query'];
+                }
+            }
+
+            // Strips all the applicable sections of the URL
+            // Note: Scheme and Host are never stripped
+            foreach ($keys as $key)
+            {
+                if ($flags & (int)constant('HTTP_URL_STRIP_' . strtoupper($key)))
+                    unset($parse_url[$key]);
+            }
+
+
+            $new_url = $parse_url;
+
+            return 
+                 ((isset($parse_url['scheme'])) ? $parse_url['scheme'] . '://' : '')
+                .((isset($parse_url['user'])) ? $parse_url['user'] . ((isset($parse_url['pass'])) ? ':' . $parse_url['pass'] : '') .'@' : '')
+                .((isset($parse_url['host'])) ? $parse_url['host'] : '')
+                .((isset($parse_url['port'])) ? ':' . $parse_url['port'] : '')
+                .((isset($parse_url['path'])) ? $parse_url['path'] : '')
+                .((isset($parse_url['query'])) ? '?' . $parse_url['query'] : '')
+                .((isset($parse_url['fragment'])) ? '#' . $parse_url['fragment'] : '')
+            ;
+        }
+    }
+
+    if (!$race_trkr_nonce){
+        $race_trkr_nonce = random_string(10);
+    }
+
+    $url_components = parse_url($url);
+    if(isset($url_components["query"])){
+        $url_components["query"] .= "&_racetrkrnonce=" . $race_trkr_nonce;
+    }
+    else{
+        $url_components["query"] = "_racetrkrnonce=" . $race_trkr_nonce;
+    } 
+
+    $url = http_build_url($url_components);
+    $encodedurl = str_replace('&;', '&amp', $url);
+    
+    $_REQUEST['_racetrkrnonce'] = $race_trkr_nonce;
+    $zy_log_file = fopen("/tmp/reqracer/php_log/moodle.log", "a");
+    $zy_log_mesg4 = "PID: " . getmypid() . ". ";
+    $zy_log_mesg4 .= "URL: " . $url . ". ";
+    $zy_log_mesg4 .= "RequestID: " . $_SERVER['UNIQUE_ID'] . ". ";
+    $zy_log_mesg4 .= "Action: . ";
+    $zy_log_mesg4 .= "Redirect Token: " . $race_trkr_nonce. ". \r\n";
+    
+    flock($zy_log_file, LOCK_EX);
+    fwrite($zy_log_file, $zy_log_mesg4);
+    fflush($zy_log_file);
+    flock($zy_log_file, LOCK_UN);
+    fclose($zy_log_file);
+
+    if (!empty($message)) {
+        if ($delay === -1 || !is_numeric($delay)) {
+            $delay = 3;
+        }
+        $message = clean_text($message);
+    } else {
+        $message = get_string('pageshouldredirect');
+        $delay = 0;
+    }
+
+    if (defined('MDL_PERF') || (!empty($CFG->perfdebug) and $CFG->perfdebug > 7)) {
+        if (defined('MDL_PERFTOLOG') && !function_exists('register_shutdown_function')) {
+            $perf = get_performance_info();
+            error_log("PERF: " . $perf['txt']);
+        }
+    }
+
+    if ($delay == 0 && !$debugdisableredirect && !headers_sent()) {
+        // workaround for IIS bug http://support.microsoft.com/kb/q176113/
+        if (session_id()) {
+            session_get_instance()->write_close();
+        }
+
+        //302 might not work for POST requests, 303 is ignored by obsolete clients.
+        @header($_SERVER['SERVER_PROTOCOL'] . ' 303 See Other');
+        @header('Location: '.$url);
+        echo bootstrap_renderer::plain_redirect_message($encodedurl);
+        exit;
+    }
+
+    // Include a redirect message, even with a HTTP redirect, because that is recommended practice.
+    $PAGE->set_pagelayout('redirect');  // No header and footer needed
+    $CFG->docroot = false; // to prevent the link to moodle docs from being displayed on redirect page.
+    echo $OUTPUT->redirect_message($encodedurl, $message, $delay, $debugdisableredirect);
+    exit;
+}
+
+In lib/dml/mysqli_native_moodle_database.php, modify function insert_record_raw to log insert_id. Add these line right after $this->query_end($result)
+$zy_log = "PID: ".getmypid().". RequestID: ".$_SERVER['UNIQUE_ID'].". Function name: mysqli_insert_id. InsertID: ".$id.". ";
+        error_log($zy_log, 3, "/tmp/reqracer/php_log/php_query.log");

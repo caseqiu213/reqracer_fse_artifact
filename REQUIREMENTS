@@ -1,0 +1,7 @@
+A Ubuntu Linux 18.04 machine with an x86_64 architecture. Alternatively, our framework should be runnable on a virtual machine running 18.04 x86_64 version.
+
+Our framework use Apache HTTPD 2.4.39, MySQL 5.6.44, and PHP 5.6.40. 
+
+Python3, and python module sqlparse and untangle.
+
+All sofware, libs, and modules will be downloaded and installed automatically by the script.

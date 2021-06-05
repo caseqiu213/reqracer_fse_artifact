@@ -1,0 +1,7 @@
+We target Artifacts Avaialbe, Functional and Reusable badges.
+
+Our artifact deserves the Artifacts Available badge because it is accessible publicly on GitHub.
+
+Our artifact shows the capability of recording requests, analyzing races off-line, and replaying racing requests. We also provide a short demo showing how our framework. Therefore, our artifact deserves the Functional badge.
+
+We provide detailed steps of collecting traces for each bug, invoking scripts, and interpreting the results. Detailed steps to reproduce each bug, instructions to add token for each application, and our bug characteristics study results are also available. Therefore, our artifact deserves the Reusable badge.

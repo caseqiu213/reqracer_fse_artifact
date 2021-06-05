@@ -1,0 +1,587 @@
+diff -Naurb php-5.6.40/ext/mysql/php_mysql.c php-5.6.40-modified/ext/mysql/php_mysql.c
+--- php-5.6.40/ext/mysql/php_mysql.c	2019-01-09 04:54:13.000000000 -0500
++++ php-5.6.40-modified/ext/mysql/php_mysql.c	2021-06-03 22:37:58.875136277 -0400
+@@ -35,6 +35,13 @@
+ #include "ext/standard/php_string.h"
+ #include "ext/standard/basic_functions.h"
+ 
++// ZY code
++#define ZY_LOG_ON 1
++#define ZY_UNIT_TEST 0
++#include "ext/standard/file.h"
++#include <time.h>
++#include <string.h>
++
+ #ifdef ZEND_ENGINE_2
+ # include "zend_exceptions.h"
+ #else
+@@ -1535,6 +1542,23 @@
+ 
+ /* {{{ php_mysql_do_query
+  */
++
++
++// ********** ZY CODE START ********** //
++
++void zy_write_trace_mysql( char * func_name, int query_len, char * query, char * r_str)
++{
++	FILE * fp;
++    int i = getpid();
++    pthread_mutex_lock(&mutex_file);
++    fp = fopen("/tmp/reqracer/php_log/php_query.log" , "a");
++    fprintf (fp, "PID: %d. RequestID: %s. Function name: %s. Query: %s. Query_length: %d. \n",i, r_str, func_name, query, query_len);
++    fclose (fp);
++    pthread_mutex_unlock(&mutex_file);
++}
++
++// ********** ZY CODE END ********** //
++
+ static void php_mysql_do_query(INTERNAL_FUNCTION_PARAMETERS, int use_store)
+ {
+ 	char *query;
+@@ -1551,7 +1575,70 @@
+ 		CHECK_LINK(id);
+ 	}
+ 
++#if ZY_UNIT_TEST
++	zy_write_trace_mysql("mysql_do_query", query_len, query, "");
++#endif
++
++	// ZY code here
++	/***************************************************************************************/
++#if ZY_LOG_ON
++	char str[query_len+1];
++	strcpy(str, query);
++	char * p;
++	char * s;
++	HashTable *_SERVER;
++	_SERVER = Z_ARRVAL_P(PG(http_globals)[TRACK_VARS_SERVER]);
++	zval ** stuff;
++	char * r_str;
++	zend_hash_find(_SERVER, "UNIQUE_ID", sizeof("UNIQUE_ID"), (void **) &stuff);
++	if(stuff != NULL){
++		r_str = Z_STRVAL_PP(stuff);
++	}
++	else{
++		char * mytime[50];
++		time_t rawtime;
++	    struct tm * timeinfo;
++	    time ( &rawtime );
++	    timeinfo = localtime ( &rawtime );
++		// sprintf(mytime, "%02d%02d%02d", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
++		sprintf(mytime, "%02d%02d", timeinfo->tm_hour, timeinfo->tm_min);
++		r_str = mytime;
++		zval **SERVER;
++		zval * type;
++		zend_hash_find(&EG(symbol_table), "_SERVER", sizeof("_SERVER"), (void**) &SERVER);
++		ALLOC_INIT_ZVAL(type);
++		ZVAL_STRING(type, mytime, 1);
++		ZEND_SET_SYMBOL(Z_ARRVAL_PP(SERVER), "UNIQUE_ID", type);
++	}
++	p = strtok(str, " ");
++	s = strtok(NULL, "");
++	char myquery[65536];
++	if(p != NULL){
++		strcpy(myquery, p);
++		strcat(myquery, " /* ");
++		if(r_str != NULL){
++			strcat(myquery, r_str);
++		}
++		strcat(myquery, " */");
++		if(s != NULL){
++			strcat(myquery, s);
++		}
++		strcat(myquery, "\0");
++	}
++	else{
++		strcpy(myquery, query);
++	}
++
++	query_len = strlen(myquery);
++
++	zy_write_trace_mysql("mysql_do_query", query_len, query, r_str);
++#endif
++	/***************************************************************************************/
++#if ZY_LOG_ON
++	php_mysql_do_query_general(myquery, query_len, mysql_link, id, NULL, use_store, return_value TSRMLS_CC);
++#else
+ 	php_mysql_do_query_general(query, query_len, mysql_link, id, NULL, use_store, return_value TSRMLS_CC);
++#endif
+ }
+ /* }}} */
+ 
+@@ -1885,6 +1972,19 @@
+ 
+ /* {{{ proto int mysql_insert_id([int link_identifier])
+    Gets the ID generated from the previous INSERT operation */
++
++void zy_write_trace_mysql_insert_id( char * func_name, my_ulonglong rc, char * r_str)
++{
++	FILE * fp;
++   	int i = getpid();
++   	pthread_mutex_lock(&mutex_file);
++   	fp = fopen("/tmp/reqracer/php_log/php_query.log" , "a");
++    fprintf (fp, "PID: %d. RequestID: %s. Function name: %s. InsertID: %llu. \n", i, r_str, func_name, rc);
++    fclose (fp);
++    pthread_mutex_unlock(&mutex_file);
++}
++
++
+ PHP_FUNCTION(mysql_insert_id)
+ {
+ 	zval *mysql_link = NULL;
+@@ -1902,7 +2002,20 @@
+ 
+ 	ZEND_FETCH_RESOURCE2(mysql, php_mysql_conn *, &mysql_link, id, "MySQL-Link", le_link, le_plink);
+ 
++
++	HashTable *_SERVER;
++	_SERVER = Z_ARRVAL_P(PG(http_globals)[TRACK_VARS_SERVER]);
++	zval ** stuff;
++	char * r_str;
++	zend_hash_find(_SERVER, "UNIQUE_ID", sizeof("UNIQUE_ID"), (void **) &stuff);
++	if(stuff != NULL){
++		r_str = Z_STRVAL_PP(stuff);
++	}
++	
+ 	/* conversion from int64 to long happing here */
++	my_ulonglong rc = mysql_insert_id(mysql->conn);
++	zy_write_trace_mysql_insert_id("mysql_insert_id", rc, r_str);
++
+ 	Z_LVAL_P(return_value) = (long) mysql_insert_id(mysql->conn);
+ 	Z_TYPE_P(return_value) = IS_LONG;
+ }
+diff -Naurb php-5.6.40/ext/mysqli/mysqli_api.c php-5.6.40-modified/ext/mysqli/mysqli_api.c
+--- php-5.6.40/ext/mysqli/mysqli_api.c	2019-01-09 04:54:13.000000000 -0500
++++ php-5.6.40-modified/ext/mysqli/mysqli_api.c	2021-06-03 22:37:08.030093679 -0400
+@@ -35,6 +35,13 @@
+ #include "mysqli_priv.h"
+ #include "ext/mysqlnd/mysql_float_to_double.h"
+ 
++// ZY code
++#define ZY_LOG_ON 1
++#define ZY_UNIT_TEST 0
++#include "ext/standard/file.h"
++#include <time.h>
++#include <string.h>
++
+ 
+ #if !defined(MYSQLI_USE_MYSQLND)
+ /* {{{ mysqli_tx_cor_options_to_string */
+@@ -1580,6 +1587,17 @@
+ 
+ /* {{{ proto mixed mysqli_insert_id(object link)
+    Get the ID generated from the previous INSERT operation */
++void zy_write_trace_mysqli_insert_id( char * func_name, my_ulonglong rc, char * r_str)
++{
++	FILE * fp;
++   	int i = getpid();
++   	pthread_mutex_lock(&mutex_file);
++   	fp = fopen("/tmp/reqracer/php_log/php_query.log" , "a");
++    fprintf (fp, "PID: %d. RequestID: %s. Function name: %s. InsertID: %llu. \n", i, r_str, func_name, rc);
++    fclose (fp);
++    pthread_mutex_unlock(&mutex_file);
++}
++
+ PHP_FUNCTION(mysqli_insert_id)
+ {
+ 	MY_MYSQL		*mysql;
+@@ -1590,7 +1608,19 @@
+ 		return;
+ 	}
+ 	MYSQLI_FETCH_RESOURCE_CONN(mysql, &mysql_link, MYSQLI_STATUS_VALID);
++
++	HashTable *_SERVER;
++	_SERVER = Z_ARRVAL_P(PG(http_globals)[TRACK_VARS_SERVER]);
++	zval ** stuff;
++	char * r_str;
++	zend_hash_find(_SERVER, "UNIQUE_ID", sizeof("UNIQUE_ID"), (void **) &stuff);
++	if(stuff != NULL){
++		r_str = Z_STRVAL_PP(stuff);
++	}
++
+ 	rc = mysql_insert_id(mysql->mysql);
++	zy_write_trace_mysqli_insert_id("mysqli_insert_id", rc, r_str);
++
+ 	MYSQLI_RETURN_LONG_LONG(rc)
+ }
+ /* }}} */
+diff -Naurb php-5.6.40/ext/mysqli/mysqli_nonapi.c php-5.6.40-modified/ext/mysqli/mysqli_nonapi.c
+--- php-5.6.40/ext/mysqli/mysqli_nonapi.c	2019-01-09 04:54:13.000000000 -0500
++++ php-5.6.40-modified/ext/mysqli/mysqli_nonapi.c	2021-06-03 22:37:08.030093679 -0400
+@@ -33,6 +33,14 @@
+ #include "php_mysqli_structs.h"
+ #include "mysqli_priv.h"
+ 
++// ZY code here
++#include "ext/standard/file.h"
++#include <time.h>
++#include <string.h>
++#define ZY_LOG_ON 1
++#define ZY_UNIT_TEST 0
++pthread_mutex_t mutex_file = PTHREAD_MUTEX_INITIALIZER;
++
+ #define SAFE_STR(a) ((a)?a:"")
+ 
+ #ifndef zend_parse_parameters_none
+@@ -40,6 +48,8 @@
+         zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "")
+ #endif
+ 
++
++
+ /* {{{ php_mysqli_set_error
+  */
+ static void php_mysqli_set_error(long mysql_errno, char *mysql_err TSRMLS_DC)
+@@ -559,6 +569,21 @@
+ /* }}} */
+ 
+ /* {{{ proto mixed mysqli_query(object link, string query [,int resultmode]) */
++
++// ZY code here
++char * zy_write_trace_mysqli( char * func_name, int query_len, char * r_str, char * query TSRMLS_DC)
++{
++	FILE * fp;
++   	int i = getpid();
++   	pthread_mutex_lock(&mutex_file);
++   	fp = fopen("/tmp/reqracer/php_log/php_query.log" , "a");
++    fprintf (fp, "PID: %d. RequestID: %s. Function name: %s. Query: %s. Query length: %d. \n",i, r_str, func_name, query, query_len);
++    fclose (fp);
++    pthread_mutex_unlock(&mutex_file);
++    return query;
++}
++
++
+ PHP_FUNCTION(mysqli_query)
+ {
+ 	MY_MYSQL			*mysql;
+@@ -577,6 +602,67 @@
+ 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Empty query");
+ 		RETURN_FALSE;
+ 	}
++#if ZY_UNIT_TEST
++	zy_write_trace_mysqli("mysqli_query", query_len, "", query TSRMLS_CC);
++#endif
++	// ZY code here
++	/***************************************************************************************/
++#if ZY_LOG_ON
++	char str[query_len+1];
++	strcpy(str, query);
++	char * p;
++	char * s;
++	HashTable *_SERVER;
++	_SERVER = Z_ARRVAL_P(PG(http_globals)[TRACK_VARS_SERVER]);
++	zval ** stuff;
++	char * r_str;
++	zend_hash_find(_SERVER, "UNIQUE_ID", sizeof("UNIQUE_ID"), (void **) &stuff);
++	if(stuff != NULL){
++		r_str = Z_STRVAL_PP(stuff);
++	}
++	else{
++		char * mytime[50];
++		time_t rawtime;
++	    struct tm * timeinfo;
++	    time ( &rawtime );
++	    timeinfo = localtime ( &rawtime );
++		// sprintf(mytime, "%02d%02d%02d", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
++		sprintf(mytime, "%02d%02d", timeinfo->tm_hour, timeinfo->tm_min);
++		r_str = mytime;
++		zval **SERVER;
++		zval * type;
++		zend_hash_find(&EG(symbol_table), "_SERVER", sizeof("_SERVER"), (void**) &SERVER);
++		ALLOC_INIT_ZVAL(type);
++		ZVAL_STRING(type, mytime, 1);
++		ZEND_SET_SYMBOL(Z_ARRVAL_PP(SERVER), "UNIQUE_ID", type);
++	}
++	
++	p = strtok(str, " ");
++	s = strtok(NULL, "");
++	char myquery[65536];
++	
++	if(p != NULL){
++		strcpy(myquery, p);
++		strcat(myquery, " /* ");
++		if(r_str != NULL){
++			strcat(myquery, r_str);
++		}
++		strcat(myquery, " */");
++		if(s != NULL){
++			strcat(myquery, s);
++		}
++		strcat(myquery, "\0");
++	}
++	else{
++		strcpy(myquery, query);
++	}
++		
++	zy_write_trace_mysqli("mysqli_query", query_len, r_str, query TSRMLS_CC);
++
++	query_len = strlen(myquery);
++#endif
++/***************************************************************************************/
++
+ #ifdef MYSQLI_USE_MYSQLND
+ 	if ((resultmode & ~MYSQLI_ASYNC) != MYSQLI_USE_RESULT && (resultmode & ~(MYSQLI_ASYNC | MYSQLI_STORE_RESULT_COPY_DATA)) != MYSQLI_STORE_RESULT) {
+ #else
+@@ -593,7 +679,11 @@
+ 
+ #ifdef MYSQLI_USE_MYSQLND
+ 	if (resultmode & MYSQLI_ASYNC) {
++	#if ZY_LOG_ON
++		if (mysqli_async_query(mysql->mysql, myquery, query_len)) {
++	#else
+ 		if (mysqli_async_query(mysql->mysql, query, query_len)) {
++	#endif
+ 			MYSQLI_REPORT_MYSQL_ERROR(mysql->mysql);
+ 			RETURN_FALSE;
+ 		}
+@@ -601,8 +691,11 @@
+ 		RETURN_TRUE;
+ 	}
+ #endif
+-
++#if ZY_LOG_ON
++	if (mysql_real_query(mysql->mysql, myquery, query_len)) {
++#else
+ 	if (mysql_real_query(mysql->mysql, query, query_len)) {
++#endif
+ 		MYSQLI_REPORT_MYSQL_ERROR(mysql->mysql);
+ 		RETURN_FALSE;
+ 	}
+diff -Naurb php-5.6.40/ext/pdo/pdo_sql_parser.c php-5.6.40-modified/ext/pdo/pdo_sql_parser.c
+--- php-5.6.40/ext/pdo/pdo_sql_parser.c	2019-01-09 05:25:59.000000000 -0500
++++ php-5.6.40-modified/ext/pdo/pdo_sql_parser.c	2021-06-03 22:38:12.847422881 -0400
+@@ -1,4 +1,5 @@
+ /* Generated by re2c 0.13.5 */
++#line 1 "ext/pdo/pdo_sql_parser.re"
+ /*
+   +----------------------------------------------------------------------+
+   | PHP Version 5                                                        |
+@@ -22,6 +23,12 @@
+ #include "php.h"
+ #include "php_pdo_driver.h"
+ #include "php_pdo_int.h"
++// ZY code here
++#include "ext/standard/file.h"
++#include <time.h>
++#include <string.h>
++#define ZY_LOG_ON 1
++#define ZY_UNIT_TEST 0
+ 
+ #define PDO_PARSER_TEXT 1
+ #define PDO_PARSER_BIND 2
+@@ -46,9 +53,11 @@
+ 	char *cursor = s->cur;
+ 
+ 	s->tok = cursor;
++	#line 55 "ext/pdo/pdo_sql_parser.re"
+ 
+ 
+ 	
++#line 55 "ext/pdo/pdo_sql_parser.c"
+ {
+ 	YYCTYPE yych;
+ 
+@@ -77,7 +86,9 @@
+ 	yych = *(YYMARKER = ++YYCURSOR);
+ 	if (yych >= 0x01) goto yy37;
+ yy4:
++#line 63 "ext/pdo/pdo_sql_parser.re"
+ 	{ SKIP_ONE(PDO_PARSER_TEXT); }
++#line 86 "ext/pdo/pdo_sql_parser.c"
+ yy5:
+ 	yych = *(YYMARKER = ++YYCURSOR);
+ 	if (yych <= 0x00) goto yy4;
+@@ -158,7 +169,9 @@
+ 	default:	goto yy8;
+ 	}
+ yy8:
++#line 62 "ext/pdo/pdo_sql_parser.re"
+ 	{ RET(PDO_PARSER_BIND_POS); }
++#line 169 "ext/pdo/pdo_sql_parser.c"
+ yy9:
+ 	yych = *++YYCURSOR;
+ 	goto yy4;
+@@ -195,7 +208,9 @@
+ 	default:	goto yy12;
+ 	}
+ yy14:
++#line 65 "ext/pdo/pdo_sql_parser.re"
+ 	{ RET(PDO_PARSER_TEXT); }
++#line 208 "ext/pdo/pdo_sql_parser.c"
+ yy15:
+ 	++YYCURSOR;
+ 	if (YYLIMIT <= YYCURSOR) YYFILL(1);
+@@ -216,7 +231,9 @@
+ yy19:
+ 	++YYCURSOR;
+ yy20:
++#line 64 "ext/pdo/pdo_sql_parser.re"
+ 	{ RET(PDO_PARSER_TEXT); }
++#line 231 "ext/pdo/pdo_sql_parser.c"
+ yy21:
+ 	++YYCURSOR;
+ 	if (YYLIMIT <= YYCURSOR) YYFILL(1);
+@@ -235,7 +252,9 @@
+ 	default:	goto yy25;
+ 	}
+ yy25:
++#line 60 "ext/pdo/pdo_sql_parser.re"
+ 	{ RET(PDO_PARSER_TEXT); }
++#line 252 "ext/pdo/pdo_sql_parser.c"
+ yy26:
+ 	++YYCURSOR;
+ 	if (YYLIMIT <= YYCURSOR) YYFILL(1);
+@@ -307,7 +326,9 @@
+ 	default:	goto yy28;
+ 	}
+ yy28:
++#line 61 "ext/pdo/pdo_sql_parser.re"
+ 	{ RET(PDO_PARSER_BIND); }
++#line 326 "ext/pdo/pdo_sql_parser.c"
+ yy29:
+ 	++YYCURSOR;
+ 	if (YYLIMIT <= YYCURSOR) YYFILL(1);
+@@ -335,7 +356,9 @@
+ 	goto yy31;
+ yy34:
+ 	++YYCURSOR;
++#line 59 "ext/pdo/pdo_sql_parser.re"
+ 	{ RET(PDO_PARSER_TEXT); }
++#line 356 "ext/pdo/pdo_sql_parser.c"
+ yy36:
+ 	++YYCURSOR;
+ 	if (YYLIMIT <= YYCURSOR) YYFILL(1);
+@@ -355,8 +378,11 @@
+ 	goto yy36;
+ yy39:
+ 	++YYCURSOR;
++#line 58 "ext/pdo/pdo_sql_parser.re"
+ 	{ RET(PDO_PARSER_TEXT); }
++#line 378 "ext/pdo/pdo_sql_parser.c"
+ }
++#line 66 "ext/pdo/pdo_sql_parser.re"
+ 	
+ }
+ 
+@@ -370,6 +396,18 @@
+ 	struct placeholder *next;
+ };
+ 
++char * zy_write_trace_pdo( char * func_name, int query_len, char * r_str, char * query TSRMLS_DC)
++{
++	FILE * fp;
++   	int i = getpid();
++   	pthread_mutex_lock(&mutex_file);
++   	fp = fopen("/tmp/reqracer/php_log/php_query.log" , "a");
++    fprintf (fp, "PID: %d. RequestID: %s. Function name: %s. Query: %s. Query length: %d. \n",i, r_str, func_name, query, query_len);
++    fclose (fp);
++    pthread_mutex_unlock(&mutex_file);
++    return query;
++}
++
+ PDO_API int pdo_parse_params(pdo_stmt_t *stmt, char *inquery, int inquery_len, 
+ 	char **outquery, int *outquery_len TSRMLS_DC)
+ {
+@@ -566,6 +604,7 @@
+ rewrite:
+ 		/* allocate output buffer */
+ 		newbuffer = emalloc(newbuffer_len + 1);
++		// newbuffer = emalloc(newbuffer_len + 36);
+ 		*outquery = newbuffer;
+ 
+ 		/* and build the query */
+@@ -591,6 +630,70 @@
+ 			newbuffer += t;
+ 		}
+ 		*newbuffer = '\0';
++
++#if ZY_LOG_ON
++		
++		HashTable *_SERVER;
++		_SERVER = Z_ARRVAL_P(PG(http_globals)[TRACK_VARS_SERVER]);
++		zval ** stuff;
++		char * r_str;
++		zend_hash_find(_SERVER, "UNIQUE_ID", sizeof("UNIQUE_ID"), (void **) &stuff);
++		if(stuff != NULL){
++			r_str = Z_STRVAL_PP(stuff);
++		}
++		else{
++			char * mytime[50];
++			time_t rawtime;
++		    struct tm * timeinfo;
++		    time ( &rawtime );
++		    timeinfo = localtime ( &rawtime );
++			// sprintf(mytime, "%02d%02d%02d", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
++			sprintf(mytime, "%02d%02d", timeinfo->tm_hour, timeinfo->tm_min);
++			r_str = mytime;
++			zval **SERVER;
++			zval * type;
++			zend_hash_find(&EG(symbol_table), "_SERVER", sizeof("_SERVER"), (void**) &SERVER);
++			ALLOC_INIT_ZVAL(type);
++			ZVAL_STRING(type, mytime, 1);
++			ZEND_SET_SYMBOL(Z_ARRVAL_PP(SERVER), "UNIQUE_ID", type);
++		}
++	
++		// char str[65536];
++		// strcpy(str, *outquery);
++		// char * zyp;
++		// char * zys;
++		// zyp = strtok(str, " ");
++		// zys = strtok(NULL, "");
++		// char myquery[65536];
++		
++		// if(zyp != NULL){
++		// 	strcpy(myquery, zyp);
++		// 	strcat(myquery, " -- ");
++		// 	if(r_str != NULL){
++		// 		strcat(myquery, r_str);
++		// 	}
++		// 	strcat(myquery, " ");
++		// 	if(zys != NULL){
++		// 		strcat(myquery, zys);
++		// 	}
++			// strcpy(myquery, zyp);
++			// strcat(myquery, " /* ");
++			// if(r_str != NULL){
++			// 	strcat(myquery, r_str);
++			// }
++			// strcat(myquery, " */");
++			// if(zys != NULL){
++			// 	strcat(myquery, zys);
++			// }
++			// strcat(myquery, " \n");
++		// }
++		// else{
++		// 	strcpy(myquery, *outquery);
++		// }
++		// strcpy(*outquery, myquery);
++		zy_write_trace_pdo("pdo_query", 0, r_str, *outquery TSRMLS_CC);
++#endif
++
+ 		*outquery_len = newbuffer - *outquery;
+ 
+ 		ret = 1;
+@@ -675,7 +778,6 @@
+ 
+ 		efree(plc);
+ 	}
+-
+ 	return ret;
+ }
+ 
+diff -Naurb php-5.6.40/ext/standard/file.h php-5.6.40-modified/ext/standard/file.h
+--- php-5.6.40/ext/standard/file.h	2019-01-09 04:54:13.000000000 -0500
++++ php-5.6.40-modified/ext/standard/file.h	2021-06-03 22:38:29.743769515 -0400
+@@ -137,6 +137,11 @@
+ extern PHPAPI php_file_globals file_globals;
+ #endif
+ 
++// ZY code
++#include <pthread.h>
++
++extern pthread_mutex_t mutex_file;
++
+ 
+ #endif /* FILE_H */
+ 

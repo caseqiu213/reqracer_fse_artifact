@@ -1,0 +1,69 @@
+In includes/Html.php, log generated token, replace hidden function.
+
+public static function hidden( $name, $value, $attribs = array() ) {
+	if($name == "wpEditToken"){
+		$orig = self::input( $name, $value, 'hidden', $attribs );
+		$zy_log_file = fopen("/tmp/reqracer/php_log/mediawiki_token.log", "a");
+		flock($zy_log_file, LOCK_EX);
+		$zy_log_mesg1 = "PID: " . getmypid() . ". ";
+		$zy_log_mesg1 .= "URL: " . $_SERVER['REQUEST_URI'] . ". ";
+		$zy_log_mesg1 .= "RequestID: " . $_SERVER['UNIQUE_ID'] . ". ";
+		$zy_log_mesg1 .= "Action: . ";
+		$zy_log_mesg1 .= "Referer: " . $_SERVER['HTTP_REFERER'] . ". ";
+		$zy_log_mesg1 .= "Generated Token: " . $value . ". ";
+		$zy_log_mesg1 .= "\r\n";
+		fwrite($zy_log_file, $zy_log_mesg1);
+		fflush($zy_log_file);
+		flock($zy_log_file, LOCK_UN);
+		fclose($zy_log_file);
+		return $orig;
+	}
+	else{
+		return self::input( $name, $value, 'hidden', $attribs );
+	}
+}
+
+In index.php, log received token, add before $mediaWiki = new MediaWiki();.
+$_racetrkrnonce =  $_REQUEST['wpEditToken'];
+if (is_array($_racetrkrnonce )){
+	$_racetrkrnonce = $_racetrkrnonce[0];
+}
+$zy_log_file = fopen("/tmp/reqracer/php_log/mediawiki_token.log", "a");
+flock($zy_log_file, LOCK_EX);
+$zy_log_mesg1 = "PID: " . getmypid() . ". ";
+$zy_log_mesg1 .= "URL: " . $_SERVER['REQUEST_URI'] . ". ";
+$zy_log_mesg1 .= "RequestID: " . $_SERVER['UNIQUE_ID'] . ". ";
+$zy_log_mesg1 .= "Action: . ";
+$zy_log_mesg1 .= "Referer: " . $_SERVER['HTTP_REFERER'] . ". ";
+$zy_log_mesg1 .= "Received Token: " . $_racetrkrnonce . ". ";
+$zy_log_mesg1 .= "\r\n";
+fwrite($zy_log_file, $zy_log_mesg1);
+fflush($zy_log_file);
+flock($zy_log_file, LOCK_UN);
+fclose($zy_log_file);
+
+in includes/User.php, replace function getEditTokenAtTimestamp:
+private function getEditTokenAtTimestamp( $salt, $request, $timestamp ) {
+	if ( $this->isAnon() ) {
+		return self::EDIT_TOKEN_SUFFIX;
+	}
+	if (!isset($_REQUEST['savedWpEditToken'])) {
+		$token = $request->getSessionData( 'wsEditToken' );
+		if( $token === null) {
+			$token = MWCryptRand::generateHex( 32 );
+			$request->setSessionData( 'wsEditToken', $token );
+		}
+		if ( is_array( $salt ) ) {
+			$salt = implode( '|', $salt);
+		}
+
+		$_REQUEST['savedWpEditToken'] = hash_hmac( 'md5', $timestamp . $salt, $token, false) . dechex( $timestamp ) . self::EDIT_TOKEN_SUFFIX;
+
+		$zy_log_file = "/tmp/reqracer/php_log/mediawiki_token.log";
+		$zy_log_msg = "PID: " . getmypid() . ". ";
+		$zy_log_msg .= "RequestID: " . $_SERVER["UNIQUE_ID"] . ". ";
+		$zy_log_msg .= "Generated Token: " . $_REQUEST['savedWpEditToken'] . ". \r\n";
+		error_log($zy_log_msg, 3, $zy_log_file);
+	}
+	return $_REQUEST['savedWpEditToken'];
+}
