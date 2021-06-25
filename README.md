@@ -7,7 +7,7 @@ We also include the bug characteristic study results, which was made available d
 
 ## Getting Started
 ReqRacer is built and tested on **Ubuntu18.04**. Please make sure that the correct version is used for a virtual machine image. If you are using other versions of Ubuntu, errors unknown to the authoers may happen.
-For more details, check the REQUIREMENTS[./REQUIREMENTS].
+For more details, check the [REQUIREMENTS](./REQUIREMENTS).
 ```
 git clone https://github.com/caseqiu213/reqracer_fse_artifact
 ```
@@ -16,7 +16,7 @@ git clone https://github.com/caseqiu213/reqracer_fse_artifact
 cd reqracer_fse_artifact
 sudo ./build.sh
 ```
-For more details, check the INSTALL[./INSTALL].
+For more details, check the [INSTALL](./INSTALL).
 
 ---
 
