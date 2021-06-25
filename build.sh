@@ -67,6 +67,8 @@ cd mysql-5.6.44
 echo "Patching MySQL"
 patch -p1 < ../../patch/mysql-patch.txt
 
+./prepare_log_files.sh
+
 # Preconfiguration setup
 groupadd mysql
 useradd -r -g mysql -s /bin/false mysql
@@ -95,7 +97,6 @@ user=root
 EOL
 echo "password=$MYSQL_PASSWORD">>~/.my.cnf
 
-./prepare_log_files.sh
 ## End of installing MySQL
 
 # Prepare curl for PHP
