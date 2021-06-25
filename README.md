@@ -6,6 +6,8 @@ This artifact includes ReqRacer source code to generate request logs, query logs
 We also include the bug characteristic study results, which was made available during paper submission at https://figshare.com/s/a164aa6d482788f326c3
 
 ## Getting Started
+ReqRacer is built and tested on **Ubuntu18.04**. Please make sure that the correct version is used for a virtual machine image. If you are using other versions of Ubuntu, errors unknown to the authoers may happen.
+For more details, check the REQUIREMENTS[./REQUIREMENTS].
 ```
 git clone https://github.com/caseqiu213/reqracer_fse_artifact
 ```
@@ -14,6 +16,7 @@ git clone https://github.com/caseqiu213/reqracer_fse_artifact
 cd reqracer_fse_artifact
 sudo ./build.sh
 ```
+For more details, check the INSTALL[./INSTALL].
 
 ---
 
