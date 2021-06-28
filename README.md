@@ -23,6 +23,23 @@ sudo ./build.sh
 ```
 For more details, check the [INSTALL](./INSTALL).
 
+Apache is installed at `reqracer_fse_artifact/build/apache`. 
+
+You can start the server by:
+```
+sudo reqracer_fse_artifact/build/apache/bin/apachectl -k start
+```
+and stop the server by:
+```
+sudo reqracer_fse_artifact/build/apache/bin/apachectl -k stop
+```
+
+Application code should be put into `reqracer_fse_artifact/build/apache/htdocs`.
+
+PHP is installed at `reqracer_fse_artifact/build/PHP`.
+
+MySQL is installed as `/usr/local/bin/mysql`.
+
 ---
 
 ### Installing Application
