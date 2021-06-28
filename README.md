@@ -45,8 +45,15 @@ MySQL is installed at `/usr/local/bin/mysql`.
 ### Installing Application
 
 - In the browser, type in `localhost:8080/phpMyAdmin/index.php`, and log in using MySQL credentials. (If you did not set the credentials manually, the `build.sh` sets the username as `root` and password as `reqracer-mysql`.)
+- You should be able to see 11073, 11437, and 24933 are created, which are bugs from WordPress. Other applications except WordPress install their database during installing wizzard. These applications do not work simply using a database snapshot, and we do not prepare database for these applications in the build script.
 - On the left bar of the webpage, click New.
-- In 'Database name', enter bug number or a name you prefer, choose utf8_unicode_ci, and click create.
+- In 'Database name', enter bug number(recommended) or a name you prefer, choose utf8_unicode_ci, and click create.
+
+Before proceed to application install, run command:
+```
+sudo chown -R your_user_name:your_user_name reqracer_fse_artifact/build
+```
+For each bug, copy the corresponding bug code from ``reqracer_fse_artifact/bug_code`  to `reqracer_fse_artifact/build/apache/htdocs`.
 
 - WordPress(11073, 11437, 24933)
   - Edit htdocs/bug_number/wp-config-sample.php, enter DB_NAME(the database name), DB_USER(your mysql account name), DB_PASSWOR(your mysql password), and save as wp-config.php.
@@ -116,9 +123,7 @@ MySQL is installed at `/usr/local/bin/mysql`.
 
 - Drupal(1484216)
    ```
-   $ cd $REQRACER_ROOT
-   $ cp -r ./bug_code/1484216/ $APACHE_ROOT/htdocs/
-   $ cd $APACHE_ROOT/htdocs/1484216/
+   $ cd reqracer_fse_artifact/build/apache/htdocs/1484216/
    $ mkdir sites/default/files
    $ chmod a+w sites/default/files
    $ cp sites/default/default.settings.php sites/default/settings.php
