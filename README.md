@@ -44,7 +44,7 @@ MySQL is installed at `/usr/local/bin/mysql`.
 
 ### Installing Application
 
-- In the browser, type in localhost/phpMyAdmin/index.php, and log in using MySQL credentials.
+- In the browser, type in `localhost:8080/phpMyAdmin/index.php`, and log in using MySQL credentials. (If you did not set the credentials, the `build.sh` set the username as `root` and password as `reqracer-mysql`.
 - On the left bar of the webpage, click New.
 - In 'Database name', enter bug number or a name you prefer, choose utf8_unicode_ci, and click create.
 
