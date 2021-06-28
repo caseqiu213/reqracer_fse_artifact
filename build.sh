@@ -206,5 +206,5 @@ cd $REQRACER_ROOT
 /usr/local/mysql/bin/mysql < ./wordpress_db.sql
 
 echo "Restarting Apache HTTPD"
-$REQRACER_PREFIX/apache/bin/apachectl -k restart
-
+$REQRACER_PREFIX/apache/bin/apachectl -k stop
+$REQRACER_PREFIX/apache/bin/apachectl -k start
