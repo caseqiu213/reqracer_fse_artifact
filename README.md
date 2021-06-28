@@ -53,7 +53,7 @@ Before proceed to application install, run command:
 ```
 sudo chown -R your_user_name:your_user_name reqracer_fse_artifact/build
 ```
-For each bug, copy the corresponding bug code from ``reqracer_fse_artifact/bug_code`  to `reqracer_fse_artifact/build/apache/htdocs`.
+For each bug, copy the corresponding bug code from `reqracer_fse_artifact/bug_code`  to `reqracer_fse_artifact/build/apache/htdocs`.
 
 - WordPress(11073, 11437, 24933)
   - Edit htdocs/bug_number/wp-config-sample.php, enter DB_NAME(the database name), DB_USER(your mysql account name), DB_PASSWOR(your mysql password), and save as wp-config.php.
