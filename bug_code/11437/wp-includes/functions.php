@@ -1853,7 +1853,7 @@ function wp_nonce_url( $actionurl, $action = -1 ) {
  * @param bool $echo Optional, default true. Whether to display or return hidden form field.
  * @return string Nonce field.
  */
-ffunction wp_nonce_field( $action = -1, $name = "_wpnonce", $referer = true , $echo = true ) {
+function wp_nonce_field( $action = -1, $name = "_wpnonce", $referer = true , $echo = true ) {
 	// $name = esc_attr( $name );
 	// $nonce_field = '<input type="hidden" id="' . $name . '" name="' . $name . '" value="' . wp_create_nonce( $action ) . '" />';
 	// if ( $echo )
