@@ -15,6 +15,10 @@ git clone https://github.com/caseqiu213/reqracer_fse_artifact
 ### Installing Software
 ```
 cd reqracer_fse_artifact
+./prepare_log_files.sh
+```
+Before running the build script, make sure `/tmp/reqracer` is created by `prepare_log_files.sh`.
+```
 sudo ./build.sh
 ```
 For more details, check the [INSTALL](./INSTALL).
@@ -23,7 +27,7 @@ For more details, check the [INSTALL](./INSTALL).
 
 ### Installing Application
 
-- In the browser, type in localhost/phpmyadmin/index.php, and log in using MySQL credentials.
+- In the browser, type in localhost/phpMyAdmin/index.php, and log in using MySQL credentials.
 - On the left bar of the webpage, click New.
 - In 'Database name', enter bug number or a name you prefer, choose utf8_unicode_ci, and click create.
 
