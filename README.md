@@ -34,11 +34,11 @@ and stop the server by:
 sudo reqracer_fse_artifact/build/apache/bin/apachectl -k stop
 ```
 
-Application code should be put into `reqracer_fse_artifact/build/apache/htdocs`.
+Web application bug code should be put into `reqracer_fse_artifact/build/apache/htdocs`.
 
 PHP is installed at `reqracer_fse_artifact/build/PHP`.
 
-MySQL is installed as `/usr/local/bin/mysql`.
+MySQL is installed at `/usr/local/bin/mysql`.
 
 ---
 
