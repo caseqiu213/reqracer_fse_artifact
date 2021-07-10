@@ -1,12 +1,12 @@
 # ReqRacer: dynamic framework for detecting and exposing server-side request races in database-backed web applications
 ReqRacer is a dynamic framework designed for detecting races between different request handlers and instances of the same request handler. The detected race effect could be a database error, the error message of which will be embedded in the returned response. The race effect could also be inconsistency on the webpage, which requires checkers to determine if the race happens. 
 
-This artifact includes ReqRacer source code to generate request logs, query logs, and token logs during recording phase, off-line analysis scripts to detect potential request races, and scripts to replay racing requests and check the race effects.
+This artifact includes ReqRacer source code to generate request logs, query logs, and token logs during the recording phase, off-line analysis scripts to detect potential request races, and scripts to replay racing requests and check the race effects.
 
 We also include the bug characteristic study results, which was made available during paper submission at https://figshare.com/s/a164aa6d482788f326c3
 
 ## Getting Started
-ReqRacer is built and tested on **Ubuntu18.04**. Please make sure that the correct version is used for a virtual machine image. If you are using other versions of Ubuntu, errors unknown to the authors may happen.
+ReqRacer is built and tested on **Ubuntu18.04**, with an 8GB RAM and a 20GB disk. Please make sure that the correct version is used for a virtual machine image. If you are using other versions of Ubuntu, errors unknown to the authors may happen.
 
 For more details, check the [REQUIREMENTS](./REQUIREMENTS).
 ```
@@ -45,11 +45,11 @@ MySQL is installed at `/usr/local/bin/mysql`.
 ### Installing Application
 
 - In the browser, type in `localhost:8080/phpMyAdmin/index.php`, and log in using MySQL credentials. (If you did not set the credentials manually, the `build.sh` sets the username as `root` and password as `reqracer-mysql`.)
-- You should be able to see 11073, 11437, and 24933 are created, which are bugs from WordPress. Other applications except WordPress install their database during installing wizzard. These applications do not work simply using a database snapshot, and we do not prepare database for these applications in the build script.
+- You should be able to see 11073, 11437, and 24933 are created, which are bugs from WordPress. Other applications except WordPress install their database during installing wizzard. These applications do not work simply using a database snapshot, and we do not prepare a database for these applications in the build script.
 - On the left bar of the webpage, click New.
 - In 'Database name', enter bug number(recommended) or a name you prefer, choose utf8_unicode_ci, and click create.
 
-Before proceed to application install, run command:
+Before proceeding to application install, run the command:
 ```
 sudo chown -R your_user_name:your_user_name reqracer_fse_artifact/build
 ```
@@ -57,18 +57,18 @@ For each bug, copy the corresponding bug code from `reqracer_fse_artifact/bug_co
 
 - WordPress(11073, 11437, 24933)
   - Edit htdocs/bug_number/wp-config-sample.php, enter DB_NAME(the database name), DB_USER(your mysql account name), DB_PASSWOR(your mysql password), and save as wp-config.php.
-  - In the brwoser, type in localhost:8080/bug_number/index.php, and follow the pop-up instructions to finish setting up the application.
+  - In the browser, type in localhost:8080/bug_number/index.php, and follow the pop-up instructions to finish setting up the application.
 
 - MediaWiki(40594, 69815)
   - In the browser, type in localhost:8080/bug_number/mw-config/index.php
-  - Follow the pop-up instructions to finish setting up the application. Set the Database name as bug_number. Database username and password are MySQL credentials. Also choose InnoDB and UTF-8.
+  - Follow the pop-up instructions to finish setting up the application. Set the Database name as bug_number. Database username and password are MySQL credentials. Also, choose InnoDB and UTF-8.
   - Choose 'ask me more questions. In 'Extensions', check Translate for 40594, and GlobalBlocking for 69815. The bugs do not require Memcached so choose object cache as we installed xcache.
   - Download the LocalSettings.php file after installation and put it into ./build/apache/htdocs/bug_number
   - Click 'enter your wiki' and login.
   - Config for 40594
-    - In phpmyadmin page, make sure table translate_groupstats does not have a record.
+    - In phpmyadmin page, make sure the table translate_groupstats does not have a record.
   - Config for 69815:
-    - On sidebar, click Special pages, and then click User rights management.
+    - On the sidebar, click Special pages, and then click User rights management.
     - Enter your username, check steward, and click save user groups.
 
 - Moodle(28949, 43421, 51707, 59854)
@@ -83,7 +83,7 @@ For each bug, copy the corresponding bug code from `reqracer_fse_artifact/bug_co
     - In 'Student progress', enable 'Completion tracking', and click 'Save changes' button.
     - Click 'Settings' -> 'Course administration' -> 'Completion tracking'.
     - In 'Manual self completion' check 'Enable'.
-    - In 'Manual competion by' check all boxes, and click 'Save changes' button.
+    - In 'Manual completion by' check all boxes, and click 'Save changes' button.
     - If a course is created, click 'Navigation' -> 'Courses' -> 'Name' -> 'Participants'.
     - Click the icon next to 'All participants', click 'Enrol users' button.
     - Click the 'Enroll' button next to the created student account and the admin account, and click 'Finish enrolling users' button.
@@ -169,7 +169,7 @@ cd ./Record
 patch_php.sh modifies PHP source code to enable query logging.
 record.sh creates a database snapshot, clears all log files, and starts GoReplay(Gor) to record requests.
 
-Follow the steps for a specific bug to invoke necessary steps to trigger a race. Once you finish recording, hit ctrl+c to terminate the record process.
+Follow the steps for a specific bug to invoke the necessary steps to trigger a race. Once you finish recording, hit ctrl+c to terminate the recording process.
 
 ### Steps for Each Bug
 - WordPress-11073
@@ -177,7 +177,7 @@ Follow the steps for a specific bug to invoke necessary steps to trigger a race.
   - On wp-admin page, click 'Posts' -> 'Add New'.
   - Enter title and content of a post, and click 'Publish'.
   - After the publish finishes, click 'Visit site'.
-  - Click the newly-added post, enter a comment and click 'Submit Comment'.
+  - Click the newly-added post, enter a comment, and click 'Submit Comment'.
   - Go to wp-admin/edit.php, click 'Edit'.
   - Hover the mouse to the newly-added post and click 'Trash', this will hit the sleep.
   - In a new browser, access the post page and add a new comment.
@@ -214,7 +214,7 @@ Follow the steps for a specific bug to invoke necessary steps to trigger a race.
 
 - Moodle-28949
   - Log in the student account and mark the assignment as completed
-  - In a terminal, run command ./build/php/bin/php ./build/apache/htdoc/28949/admin/cli/cron.php
+  - In a terminal, run command ./build/php/bin/php ./build/apache/htdocs/28949/admin/cli/cron.php
   - Log in the admin account.
   - On 'Course completion' page, click the check box to mark that the student completed the course.
   - When the race happens, an error message saying 'Found more than one record in fetch()' is returned in the response.
@@ -232,7 +232,7 @@ Follow the steps for a specific bug to invoke necessary steps to trigger a race.
 - Moodle-59854
   - Click the forum, then click the gear icon on the page. 
   - Click 'Show/edit current subscribers' and then click 'Turn editing on' button.
-  - Select the student account to be enrolled to the forum and click 'Add'.
+  - Select the student account to be enrolled in the forum and click 'Add'.
   - When the race happens, in the database, the user is subscribed twice for the same forum.
 
 - Drupal-1484216
@@ -248,13 +248,13 @@ cd ./Replay
 cd ../Analyze/V2/
 python3 ./generate_queries.py
 ```
-prepare_analyze.sh copies log files to the Analyze directory and splits a request trace having multiple requests into files of individual request.
+prepare_analyze.sh copies log files to the Analyze directory and splits a request trace having multiple requests into files of individual requests.
 generate_queries.py finds potential racing requests, prunes races using RRR and SPK dependencies, and generates replay logs and queries in unserializable patterns.
 
 ### Invoke the Replay Script
 The replay log filenames are in the format of replay<session_num>_dup_req_<racing_request_num1>_req_<racing_request_num2>. For each pair of racing requests, do the following steps.
 1. Run ```python3 ./calc_time.py``` with one replay log, change the sleep time in line24 in replay.sh with the output.
-2. In the bug_number folder, you will find the query log files with names in the format of dup_req_<racing_request_num1>_req_<racing_request_num2>_replay_queries_<sequence_num>. For each query log associated with the same request pair, copy and paste the content to /tmp/reqracer/php_log/mysql_files/zy_race_queries.txt. Truncate the query string if it has time related information. 
+2. In the bug_number folder, you will find the query log files with names in the format of dup_req_<racing_request_num1>_req_<racing_request_num2>_replay_queries_<sequence_num>. For each query log associated with the same request pair, copy and paste the content to /tmp/reqracer/php_log/mysql_files/zy_race_queries.txt. Truncate the query string if it has time-related information. 
 3. For Mediawiki and Moodle, you may need to open a new browser to get session values from cookies and token values associated with the session from the page source code. The session id in cookies for MediaWiki has a name of bug_numberSession, and Moodle has a name of MoodleSession. The token in MediaWiki has a name of 'EditToken' and Moodle has a name of 'sesskey'.
 4. Append a dummy GET request at the end of both log files from replay1_logs and replay2_logs. Usually, the first request in a recorded request trace is a GET request, and we can run the following command to get the new replay logs:
 ```
@@ -262,21 +262,21 @@ cat replay1_logs/filename xx00 > replay1_logs/new_filename
 cat replay2_logs/filename xx00 > replay2_logs/new_filename
 ```
 5. Replace the new session id and token value in the logs in replay1_logs folder. Note that you need to use vim to replace the session id and token value. Using a text editor messes up the replay log format and Gor will not be able to read the logs.
-6. Change the timestamp of the last request in the log to make it happen 20 seconds after the previous one. The timestamp is in nano seconds.
+6. Change the timestamp of the last request in the log to make it happen 20 seconds after the previous one. The timestamp is in nanoseconds.
 7. Run ```./replay.sh bug_number replay1_log_new_filename replay2_log_new_filename```
 
 ### Reason for Manual Work Required by ReqRacer
 1. Copy and paste session id and token value into replay logs.
 
-Since requests with the same session id will be serialized on the server-side, we cannot use the same session id while replaying two racing requests. In the recording phase of ReqRacer, all requests are recorded in one browser. The session id is stored in the browser cookies so requests sent from the same browser have the same session id. Therefore, in the replay phase, to get a different session id in the second replay session, we manually open a new browser, log in to the user account, inspect the web page, and copy and paste the session id. The token value is associated with the session id, and it is embedded in the HTML. We also copy and paste the new token value to replay logs. To automate this step, we need a more advanced replay tool which can extract data from previous response and embed the data into subsequent requests. However, Gor does not support such feature. 
+Since requests with the same session id will be serialized on the server side, we cannot use the same session id while replaying two racing requests. In the recording phase of ReqRacer, all requests are recorded in one browser. The session id is stored in the browser cookies so requests sent from the same browser have the same session id. Therefore, in the replay phase, to get a different session id in the second replay session, we manually open a new browser, log in to the user account, inspect the web page, and copy and paste the session id. The token value is associated with the session id, and it is embedded in the HTML. We also copy and paste the new token value to replay logs. To automate this step, we need a more advanced replay tool which can extract data from the previous response and embed the data into subsequent requests. However, Gor does not support such a feature. 
 
 2. Append a dummy request at the end of replay logs.
 
-This is another limitaion of Gor. We add delays in MySQL to enforce a specific query sequence to check if the race happens. When Gor replays the last request in the replay log and MySQL delay is triggered, Gor could terminate before the corresponding response is returned, and the response is not captured. To avoid this problem, we add a dummy request, which is often a GET request, at the end of the replay log, and change the timestamp of the dummy request to be sent 20 seconds after the time the previous request is sent. By doing this, we can capture the response of the last request in the replay log even if MySQL delays are triggered.
+This is another limitation of Gor. We add delays in MySQL to enforce a specific query sequence to check if the race happens. When Gor replays the last request in the replay log and MySQL delay is triggered, Gor could terminate before the corresponding response is returned, and the response is not captured. To avoid this problem, we add a dummy request, which is often a GET request, at the end of the replay log, and change the timestamp of the dummy request to be sent 20 seconds after the time the previous request is sent. By doing this, we can capture the response of the last request in the replay log even if MySQL delays are triggered.
 
 3. Change query strings to be enforced.
 
-In our implementation, we check if an incoming query string matches a query in the unserializable pattern. However, the incoming query string may contain information related to time, such as a timestamp when adding a comment. Such time information changes from run to run, and usually does not relate to trigging the race. Therefore, we manually inspect the pattern query, truncate data that are related to time, and remain data that does not change from run to run.
+In our implementation, we check if an incoming query string matches a query in the unserializable pattern. However, the incoming query string may contain information related to time, such as a timestamp when adding a comment. Such time information changes from run to run, and usually does not relate to trigging the race. Therefore, we manually inspect the pattern query, truncate data that are related to time, and retain data that does not change from run to run.
 
 4. Change the sleep time before starting the second replay session.
 
