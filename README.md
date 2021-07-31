@@ -3,7 +3,7 @@ ReqRacer is a dynamic framework designed for detecting races between different r
 
 This artifact includes ReqRacer source code to generate request logs, query logs, and token logs during the recording phase, off-line analysis scripts to detect potential request races, and scripts to replay racing requests and check the race effects.
 
-We also include the bug characteristic study results, which was made available during paper submission at https://figshare.com/s/a164aa6d482788f326c3
+We also include the bug characteristic study results in file `ReqRacer_bug_characteristics_study.xlsx` and steps of reproducing race bugs in file `12_bug_reproduce_steps.txt`.
 
 ## Getting Started
 ReqRacer is built and tested on **Ubuntu18.04**, with an 8GB RAM and a 20GB disk. Please make sure that the correct version is used for a virtual machine image. If you are using other versions of Ubuntu, errors unknown to the authors may happen.
@@ -12,6 +12,9 @@ For more details, check the [REQUIREMENTS](./REQUIREMENTS).
 ```
 git clone https://github.com/caseqiu213/reqracer_fse_artifact
 ```
+
+---
+
 ### Installing Software
 ```
 cd reqracer_fse_artifact
@@ -140,6 +143,8 @@ For each bug, copy the corresponding bug code from `reqracer_fse_artifact/bug_co
 ## Run the Framework
 Make sure the user account of the web application is logged in before invoking the record script.
 
+---
+
 ### Demo
 We offer a demo of ReqRacer of three different bugs at https://www.youtube.com/playlist?list=PL2jhpkScX9vTqyQny7h5X8TJsaI-j5RnD
 
@@ -151,6 +156,8 @@ This demo shows that ReqRacer can detect races between different request handler
 
 69815 is a race between instances of blocking the same IP address. When this race happens, a database error is triggered and the error message is embedded in the returned response. Therefore we can check the response to determine if the race happens. 
 
+---
+
 ### File Location
 The query logs are located at /tmp/reqracer/php_log/php_query.log
 
@@ -159,6 +166,8 @@ The token logs are located at /tmp/reqracer/php_log/app_name_token.log
 The files read and written by MySQL are located at /tmp/reqracer/php_log/mysql_files/
 
 The database snapshots are located at /tmp/reqracer/php_log/db_snapshots/
+
+---
 
 ### Invoke the Record Scripts
 ```
@@ -170,6 +179,8 @@ patch_php.sh modifies PHP source code to enable query logging.
 record.sh creates a database snapshot, clears all log files, and starts GoReplay(Gor) to record requests.
 
 Follow the steps for a specific bug to invoke the necessary steps to trigger a race. Once you finish recording, hit ctrl+c to terminate the recording process.
+
+---
 
 ### Steps for Each Bug
 - WordPress-11073
@@ -251,6 +262,8 @@ python3 ./generate_queries.py
 prepare_analyze.sh copies log files to the Analyze directory and splits a request trace having multiple requests into files of individual requests.
 generate_queries.py finds potential racing requests, prunes races using RRR and SPK dependencies, and generates replay logs and queries in unserializable patterns.
 
+---
+
 ### Invoke the Replay Script
 The replay log filenames are in the format of replay<session_num>_dup_req_<racing_request_num1>_req_<racing_request_num2>. For each pair of racing requests, do the following steps.
 1. Run ```python3 ./calc_time.py``` with one replay log, change the sleep time in line24 in replay.sh with the output.
@@ -264,6 +277,8 @@ cat replay2_logs/filename xx00 > replay2_logs/new_filename
 5. Replace the new session id and token value in the logs in replay1_logs folder. Note that you need to use vim to replace the session id and token value. Using a text editor messes up the replay log format and Gor will not be able to read the logs.
 6. Change the timestamp of the last request in the log to make it happen 20 seconds after the previous one. The timestamp is in nanoseconds.
 7. Run ```./replay.sh bug_number replay1_log_new_filename replay2_log_new_filename```
+
+---
 
 ### Reason for Manual Work Required by ReqRacer
 1. Copy and paste session id and token value into replay logs.
